@@ -116,6 +116,7 @@ class LockscreenClock(context: Context) : ModPack(context) {
     private var mBatteryLevelArcProgress: ArcProgressImageView? = null
     private var mTemperatureArcProgress: ArcProgressImageView? = null
     private var mCpuUsageArcProgress: ArcProgressImageView? = null
+    private val mCustomArcProgressViews = mutableListOf<ArcProgressImageView>()
     private var mAccentColor1 = 0
     private var mAccentColor2 = 0
     private var mAccentColor3 = 0
@@ -133,6 +134,13 @@ class LockscreenClock(context: Context) : ModPack(context) {
     private var customDeviceName = ""
     private var customFontEnabled = false
     private var customImageEnabled = false
+    private var arcConstructorEnabled = false
+    private var arcLayoutMode = "0"
+    private var arcSlot1 = "battery"
+    private var arcSlot2 = "memory"
+    private var arcSlot3 = "temperature"
+    private var arcSlot4 = "volume"
+    private var arcBatteryMode = "0"
     private var clock61ShowTimeOverlay = true
     private var clock61MediaWidth = 220
     private var clock61MediaHeight = 220
@@ -208,6 +216,13 @@ class LockscreenClock(context: Context) : ModPack(context) {
             customFontEnabled = getString(XposedKey.LSCLOCK_FONT_FILE_URI).isNotEmpty()
             customImageEnabled = getString(XposedKey.LSCLOCK_IMAGE1_FILE_URI).isNotEmpty() ||
                     getString(XposedKey.LSCLOCK_IMAGE2_FILE_URI).isNotEmpty()
+            arcConstructorEnabled = getBoolean(XposedKey.LSCLOCK_ARC_CONSTRUCTOR)
+            arcLayoutMode = getString(XposedKey.LSCLOCK_ARC_LAYOUT)
+            arcSlot1 = getString(XposedKey.LSCLOCK_ARC_SLOT_1)
+            arcSlot2 = getString(XposedKey.LSCLOCK_ARC_SLOT_2)
+            arcSlot3 = getString(XposedKey.LSCLOCK_ARC_SLOT_3)
+            arcSlot4 = getString(XposedKey.LSCLOCK_ARC_SLOT_4)
+            arcBatteryMode = getString(XposedKey.LSCLOCK_ARC_BATTERY_MODE)
             clock61ShowTimeOverlay = getBoolean(XposedKey.LSCLOCK_61_SHOW_TIME_OVERLAY)
             clock61MediaWidth = getInt(XposedKey.LSCLOCK_61_MEDIA_WIDTH)
             clock61MediaHeight = getInt(XposedKey.LSCLOCK_61_MEDIA_HEIGHT)
@@ -237,6 +252,13 @@ class LockscreenClock(context: Context) : ModPack(context) {
                 XposedKey.LSCLOCK_CUSTOM_COLOR.name,
                 XposedKey.LSCLOCK_LINE_HEIGHT.name,
                 XposedKey.LSCLOCK_TEXT_SCALE.name,
+                XposedKey.LSCLOCK_ARC_CONSTRUCTOR.name,
+                XposedKey.LSCLOCK_ARC_LAYOUT.name,
+                XposedKey.LSCLOCK_ARC_SLOT_1.name,
+                XposedKey.LSCLOCK_ARC_SLOT_2.name,
+                XposedKey.LSCLOCK_ARC_SLOT_3.name,
+                XposedKey.LSCLOCK_ARC_SLOT_4.name,
+                XposedKey.LSCLOCK_ARC_BATTERY_MODE.name,
                 XposedKey.LSCLOCK_61_SHOW_TIME_OVERLAY.name,
                 XposedKey.LSCLOCK_61_MEDIA_WIDTH.name,
                 XposedKey.LSCLOCK_61_MEDIA_HEIGHT.name,
@@ -773,7 +795,7 @@ class LockscreenClock(context: Context) : ModPack(context) {
             mBatteryLevelArcProgress,
             mTemperatureArcProgress,
             mCpuUsageArcProgress
-        )
+        ) + mCustomArcProgressViews
 
     private fun modifyClockView(clockView: View?) {
         if (!XprefsIsInitialized || mLsItemsContainer == null || clockView == null) return
@@ -837,6 +859,7 @@ class LockscreenClock(context: Context) : ModPack(context) {
         mBatteryLevelArcProgress = null
         mTemperatureArcProgress = null
         mCpuUsageArcProgress = null
+        mCustomArcProgressViews.clear()
 
         clockView.apply {
             when (clockStyle) {
@@ -856,10 +879,14 @@ class LockscreenClock(context: Context) : ModPack(context) {
                 }
 
                 56 -> {
-                    addArcProgressView("volume_progress")
-                    addArcProgressView("ram_usage_info")
-                    addArcProgressView("battery_progress_arc")
-                    addArcProgressView("temperature_progress")
+                    if (arcConstructorEnabled) {
+                        buildArcWidgetConstructor()
+                    } else {
+                        addArcProgressView("volume_progress")
+                        addArcProgressView("ram_usage_info")
+                        addArcProgressView("battery_progress_arc")
+                        addArcProgressView("temperature_progress")
+                    }
                 }
 
                 61 -> Unit
@@ -1132,6 +1159,122 @@ class LockscreenClock(context: Context) : ModPack(context) {
         }
     }
 
+    private fun View.buildArcWidgetConstructor() {
+        val container = findArcWidgetsContainer() ?: return
+        val widgetTags = listOf(arcSlot1, arcSlot2, arcSlot3, arcSlot4)
+            .mapNotNull { it.toArcProgressTag() }
+
+        container.visibility = if (arcLayoutMode == "4" || widgetTags.isEmpty()) {
+            View.GONE
+        } else {
+            View.VISIBLE
+        }
+        container.removeAllViews()
+
+        if (container.visibility == View.GONE) return
+
+        when (arcLayoutMode) {
+            "0", "1" -> buildArcRow(container, widgetTags)
+            "2" -> buildArcGrid(container, widgetTags)
+            "3" -> buildArcColumn(container, widgetTags)
+            else -> buildArcRow(container, widgetTags)
+        }
+    }
+
+    private fun View.findArcWidgetsContainer(): LinearLayout? {
+        val knownTags = listOf(
+            "battery_progress_arc",
+            "ram_usage_info",
+            "temperature_progress",
+            "volume_progress",
+            "cpu_usage_info"
+        )
+
+        knownTags.forEach { tag ->
+            val widgetContainer = findViewContainingTag(tag)
+            val parent = widgetContainer?.parent as? LinearLayout
+            if (parent != null) return parent
+        }
+
+        return null
+    }
+
+    private fun buildArcRow(container: LinearLayout, widgetTags: List<String>) {
+        container.orientation = LinearLayout.HORIZONTAL
+        widgetTags.forEachIndexed { index, tag ->
+            container.addView(newArcSlot(tag, index, widgetTags.lastIndex))
+        }
+    }
+
+    private fun buildArcColumn(container: LinearLayout, widgetTags: List<String>) {
+        container.orientation = LinearLayout.VERTICAL
+        widgetTags.forEachIndexed { index, tag ->
+            container.addView(newArcSlot(tag, index, widgetTags.lastIndex, vertical = true))
+        }
+    }
+
+    private fun buildArcGrid(container: LinearLayout, widgetTags: List<String>) {
+        container.orientation = LinearLayout.VERTICAL
+        widgetTags.chunked(2).forEachIndexed { rowIndex, rowTags ->
+            val row = LinearLayout(mContext).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = android.view.Gravity.CENTER
+                layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.WRAP_CONTENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT
+                )
+            }
+
+            rowTags.forEachIndexed { index, tag ->
+                row.addView(newArcSlot(tag, index, rowTags.lastIndex, vertical = false))
+            }
+
+            val rowParams = row.layoutParams as LinearLayout.LayoutParams
+            rowParams.topMargin = if (rowIndex == 0) 0 else dp(12)
+            row.layoutParams = rowParams
+            container.addView(row)
+        }
+    }
+
+    private fun newArcSlot(
+        parentTag: String,
+        index: Int,
+        lastIndex: Int,
+        vertical: Boolean = false
+    ): LinearLayout {
+        val margin = dp(12)
+
+        return LinearLayout(mContext).apply {
+            tag = "text1|$parentTag"
+            layoutParams = LinearLayout.LayoutParams(dp(60), dp(60)).apply {
+                if (vertical) {
+                    topMargin = if (index == 0) 0 else margin
+                } else {
+                    marginStart = if (index == 0) 0 else margin
+                    marginEnd = if (index == lastIndex) 0 else margin
+                }
+            }
+            alpha = 0.9f
+            gravity = android.view.Gravity.CENTER
+            addArcProgressView(parentTag)
+        }
+    }
+
+    private fun String.toArcProgressTag(): String? {
+        return when (this) {
+            "battery" -> "battery_progress_arc"
+            "memory" -> "ram_usage_info"
+            "temperature" -> "temperature_progress"
+            "volume" -> "volume_progress"
+            "cpu" -> "cpu_usage_info"
+            else -> null
+        }
+    }
+
+    private fun dp(value: Int): Int {
+        return (value * mContext.resources.displayMetrics.density).toInt()
+    }
+
     private fun View.addArcProgressView(parentTag: String) {
         val container = findViewContainingTag(parentTag) as LinearLayout?
         container?.setBackgroundResource(0)
@@ -1169,6 +1312,14 @@ class LockscreenClock(context: Context) : ModPack(context) {
                         setProgressType(ArcProgressImageView.ProgressType.BATTERY)
                     }
                 }
+                mBatteryLevelArcProgress?.setBatteryDisplayMode(
+                    if (arcConstructorEnabled && arcBatteryMode == "1") {
+                        ArcProgressImageView.BatteryDisplayMode.PERCENT
+                    } else {
+                        ArcProgressImageView.BatteryDisplayMode.CURRENT
+                    }
+                )
+                mBatteryLevelArcProgress?.refreshProgress()
                 container?.reAddView(mBatteryLevelArcProgress)
             }
 

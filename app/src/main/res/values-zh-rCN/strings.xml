@@ -1546,4 +1546,14 @@
     <string name="lockscreen_clock_61_scale_center_inside">Center inside</string>
     <string name="lockscreen_clock_61_scale_fit_xy">Fit XY</string>
 
+
+    <string name="lockscreen_clock_constructor_title">Constructor</string>
+    <string name="lockscreen_clock_constructor_enable_title">Use arc widget constructor</string>
+    <string name="lockscreen_clock_constructor_enable_desc">Customize the circular widget block without changing the selected clock style.</string>
+    <string name="lockscreen_clock_arc_layout_title">Widget layout</string>
+    <string name="lockscreen_clock_arc_slot_1_title">Widget 1</string>
+    <string name="lockscreen_clock_arc_slot_2_title">Widget 2</string>
+    <string name="lockscreen_clock_arc_slot_3_title">Widget 3</string>
+    <string name="lockscreen_clock_arc_slot_4_title">Widget 4</string>
+    <string name="lockscreen_clock_arc_battery_mode_title">Battery display mode</string>
 </resources>

@@ -1545,4 +1545,14 @@
     <string name="lockscreen_clock_61_scale_center_inside">Внутри по центру</string>
     <string name="lockscreen_clock_61_scale_fit_xy">Растянуть по XY</string>
 
+
+    <string name="lockscreen_clock_constructor_title">Конструктор</string>
+    <string name="lockscreen_clock_constructor_enable_title">Использовать конструктор кружков</string>
+    <string name="lockscreen_clock_constructor_enable_desc">Настраивает блок круговых виджетов без изменения выбранного стиля часов.</string>
+    <string name="lockscreen_clock_arc_layout_title">Расположение виджетов</string>
+    <string name="lockscreen_clock_arc_slot_1_title">Виджет 1</string>
+    <string name="lockscreen_clock_arc_slot_2_title">Виджет 2</string>
+    <string name="lockscreen_clock_arc_slot_3_title">Виджет 3</string>
+    <string name="lockscreen_clock_arc_slot_4_title">Виджет 4</string>
+    <string name="lockscreen_clock_arc_battery_mode_title">Режим батареи</string>
 </resources>
