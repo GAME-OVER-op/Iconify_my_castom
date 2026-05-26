@@ -551,4 +551,49 @@
         <item>120</item>
     </string-array>
 
+
+    <string-array name="lockscreen_clock_arc_layout_entries" translatable="false">
+        <item>@string/lockscreen_clock_arc_layout_original</item>
+        <item>@string/lockscreen_clock_arc_layout_row</item>
+        <item>@string/lockscreen_clock_arc_layout_grid</item>
+        <item>@string/lockscreen_clock_arc_layout_column</item>
+        <item>@string/lockscreen_clock_arc_layout_hidden</item>
+    </string-array>
+
+    <string-array name="lockscreen_clock_arc_layout_values" translatable="false">
+        <item>0</item>
+        <item>1</item>
+        <item>2</item>
+        <item>3</item>
+        <item>4</item>
+    </string-array>
+
+    <string-array name="lockscreen_clock_arc_widget_entries" translatable="false">
+        <item>@string/lockscreen_clock_arc_widget_none</item>
+        <item>@string/lockscreen_clock_arc_widget_battery</item>
+        <item>@string/lockscreen_clock_arc_widget_memory</item>
+        <item>@string/lockscreen_clock_arc_widget_temperature</item>
+        <item>@string/lockscreen_clock_arc_widget_volume</item>
+        <item>@string/lockscreen_clock_arc_widget_cpu</item>
+    </string-array>
+
+    <string-array name="lockscreen_clock_arc_widget_values" translatable="false">
+        <item>none</item>
+        <item>battery</item>
+        <item>memory</item>
+        <item>temperature</item>
+        <item>volume</item>
+        <item>cpu</item>
+    </string-array>
+
+    <string-array name="lockscreen_clock_arc_battery_mode_entries" translatable="false">
+        <item>@string/lockscreen_clock_arc_battery_current</item>
+        <item>@string/lockscreen_clock_arc_battery_percent</item>
+    </string-array>
+
+    <string-array name="lockscreen_clock_arc_battery_mode_values" translatable="false">
+        <item>0</item>
+        <item>1</item>
+    </string-array>
+
 </resources>

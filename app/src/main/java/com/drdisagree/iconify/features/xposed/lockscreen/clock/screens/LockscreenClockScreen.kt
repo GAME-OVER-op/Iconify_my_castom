@@ -8,6 +8,7 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.drdisagree.iconify.R
 import com.drdisagree.iconify.core.preferences.PreferenceListener
 import com.drdisagree.iconify.core.preferences.PreferenceScreen
+import com.drdisagree.iconify.core.preferences.arrayRes
 import com.drdisagree.iconify.core.preferences.preferenceScreen
 import com.drdisagree.iconify.core.preferences.stringRes
 import com.drdisagree.iconify.core.ui.components.others.PreviewComposable
@@ -32,6 +33,90 @@ val lsClockPreferences = preferenceScreen {
 
     composable(key = "clock_previews") {
         LockscreenClockPreview()
+    }
+
+    category(
+        title = stringRes(R.string.lockscreen_clock_constructor_title)
+    ) {
+        switch(
+            key = XposedKey.LSCLOCK_ARC_CONSTRUCTOR,
+            title = stringRes(R.string.lockscreen_clock_constructor_enable_title),
+            summary = { stringRes(R.string.lockscreen_clock_constructor_enable_desc) },
+            isEnabled = { it.getBoolean(XposedKey.CUSTOM_LOCKSCREEN_CLOCK) },
+            isVisible = { it.getInt(XposedKey.LSCLOCK_STYLE) == 56 }
+        )
+
+        listPref(
+            key = XposedKey.LSCLOCK_ARC_LAYOUT,
+            title = stringRes(R.string.lockscreen_clock_arc_layout_title),
+            entries = arrayRes(R.array.lockscreen_clock_arc_layout_entries),
+            entryValues = arrayRes(R.array.lockscreen_clock_arc_layout_values),
+            isEnabled = {
+                it.getBoolean(XposedKey.CUSTOM_LOCKSCREEN_CLOCK) &&
+                        it.getBoolean(XposedKey.LSCLOCK_ARC_CONSTRUCTOR)
+            },
+            isVisible = { it.getInt(XposedKey.LSCLOCK_STYLE) == 56 }
+        )
+
+        listPref(
+            key = XposedKey.LSCLOCK_ARC_SLOT_1,
+            title = stringRes(R.string.lockscreen_clock_arc_slot_1_title),
+            entries = arrayRes(R.array.lockscreen_clock_arc_widget_entries),
+            entryValues = arrayRes(R.array.lockscreen_clock_arc_widget_values),
+            isEnabled = {
+                it.getBoolean(XposedKey.CUSTOM_LOCKSCREEN_CLOCK) &&
+                        it.getBoolean(XposedKey.LSCLOCK_ARC_CONSTRUCTOR)
+            },
+            isVisible = { it.getInt(XposedKey.LSCLOCK_STYLE) == 56 }
+        )
+
+        listPref(
+            key = XposedKey.LSCLOCK_ARC_SLOT_2,
+            title = stringRes(R.string.lockscreen_clock_arc_slot_2_title),
+            entries = arrayRes(R.array.lockscreen_clock_arc_widget_entries),
+            entryValues = arrayRes(R.array.lockscreen_clock_arc_widget_values),
+            isEnabled = {
+                it.getBoolean(XposedKey.CUSTOM_LOCKSCREEN_CLOCK) &&
+                        it.getBoolean(XposedKey.LSCLOCK_ARC_CONSTRUCTOR)
+            },
+            isVisible = { it.getInt(XposedKey.LSCLOCK_STYLE) == 56 }
+        )
+
+        listPref(
+            key = XposedKey.LSCLOCK_ARC_SLOT_3,
+            title = stringRes(R.string.lockscreen_clock_arc_slot_3_title),
+            entries = arrayRes(R.array.lockscreen_clock_arc_widget_entries),
+            entryValues = arrayRes(R.array.lockscreen_clock_arc_widget_values),
+            isEnabled = {
+                it.getBoolean(XposedKey.CUSTOM_LOCKSCREEN_CLOCK) &&
+                        it.getBoolean(XposedKey.LSCLOCK_ARC_CONSTRUCTOR)
+            },
+            isVisible = { it.getInt(XposedKey.LSCLOCK_STYLE) == 56 }
+        )
+
+        listPref(
+            key = XposedKey.LSCLOCK_ARC_SLOT_4,
+            title = stringRes(R.string.lockscreen_clock_arc_slot_4_title),
+            entries = arrayRes(R.array.lockscreen_clock_arc_widget_entries),
+            entryValues = arrayRes(R.array.lockscreen_clock_arc_widget_values),
+            isEnabled = {
+                it.getBoolean(XposedKey.CUSTOM_LOCKSCREEN_CLOCK) &&
+                        it.getBoolean(XposedKey.LSCLOCK_ARC_CONSTRUCTOR)
+            },
+            isVisible = { it.getInt(XposedKey.LSCLOCK_STYLE) == 56 }
+        )
+
+        listPref(
+            key = XposedKey.LSCLOCK_ARC_BATTERY_MODE,
+            title = stringRes(R.string.lockscreen_clock_arc_battery_mode_title),
+            entries = arrayRes(R.array.lockscreen_clock_arc_battery_mode_entries),
+            entryValues = arrayRes(R.array.lockscreen_clock_arc_battery_mode_values),
+            isEnabled = {
+                it.getBoolean(XposedKey.CUSTOM_LOCKSCREEN_CLOCK) &&
+                        it.getBoolean(XposedKey.LSCLOCK_ARC_CONSTRUCTOR)
+            },
+            isVisible = { it.getInt(XposedKey.LSCLOCK_STYLE) == 56 }
+        )
     }
 
     category {
@@ -217,8 +302,19 @@ val lsClockPreferences = preferenceScreen {
 fun LockscreenClockScreen(
     systemActionViewModel: SystemActionViewModel? = hiltViewModel(),
 ) {
-    PreferenceListener(key = XposedKey.CUSTOM_LOCKSCREEN_CLOCK) {
-        systemActionViewModel?.shouldRestartSystemUI()
+    PreferenceListener { event ->
+        when (event.key) {
+            XposedKey.CUSTOM_LOCKSCREEN_CLOCK.name,
+            XposedKey.LSCLOCK_ARC_CONSTRUCTOR.name,
+            XposedKey.LSCLOCK_ARC_LAYOUT.name,
+            XposedKey.LSCLOCK_ARC_SLOT_1.name,
+            XposedKey.LSCLOCK_ARC_SLOT_2.name,
+            XposedKey.LSCLOCK_ARC_SLOT_3.name,
+            XposedKey.LSCLOCK_ARC_SLOT_4.name,
+            XposedKey.LSCLOCK_ARC_BATTERY_MODE.name -> {
+                systemActionViewModel?.shouldRestartSystemUI()
+            }
+        }
     }
 
     PreferenceScreen(

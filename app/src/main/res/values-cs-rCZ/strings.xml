@@ -1485,4 +1485,26 @@
     <string name="lockscreen_visualizer_smoothness_title">Plynulost</string>
     <string name="lockscreen_visualizer_fps_title">FPS vizualizéru</string>
 
+    <string name="lockscreen_clock_constructor_title">Constructor</string>
+    <string name="lockscreen_clock_constructor_enable_title">Use arc widget constructor</string>
+    <string name="lockscreen_clock_constructor_enable_desc">Customize the circular widget block without changing the selected clock style.</string>
+    <string name="lockscreen_clock_arc_layout_title">Widget layout</string>
+    <string name="lockscreen_clock_arc_layout_original">Original</string>
+    <string name="lockscreen_clock_arc_layout_row">One line</string>
+    <string name="lockscreen_clock_arc_layout_grid">2 x 2 grid</string>
+    <string name="lockscreen_clock_arc_layout_column">Column</string>
+    <string name="lockscreen_clock_arc_layout_hidden">Hidden</string>
+    <string name="lockscreen_clock_arc_slot_1_title">Widget 1</string>
+    <string name="lockscreen_clock_arc_slot_2_title">Widget 2</string>
+    <string name="lockscreen_clock_arc_slot_3_title">Widget 3</string>
+    <string name="lockscreen_clock_arc_slot_4_title">Widget 4</string>
+    <string name="lockscreen_clock_arc_widget_none">None</string>
+    <string name="lockscreen_clock_arc_widget_battery">Battery</string>
+    <string name="lockscreen_clock_arc_widget_memory">RAM usage</string>
+    <string name="lockscreen_clock_arc_widget_temperature">Temperature</string>
+    <string name="lockscreen_clock_arc_widget_volume">Volume</string>
+    <string name="lockscreen_clock_arc_widget_cpu">CPU usage</string>
+    <string name="lockscreen_clock_arc_battery_mode_title">Battery display mode</string>
+    <string name="lockscreen_clock_arc_battery_current">Current mA</string>
+    <string name="lockscreen_clock_arc_battery_percent">Percentage</string>
 </resources>

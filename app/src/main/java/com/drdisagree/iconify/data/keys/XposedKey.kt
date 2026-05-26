@@ -218,6 +218,13 @@ enum class XposedKey(override val default: Any?) : Key {
     LSCLOCK_BOTTOM_MARGIN(40f),
     LSCLOCK_DEVICE_NAME(""),
     LSCLOCK_USER_NAME(""),
+    LSCLOCK_ARC_CONSTRUCTOR(false),
+    LSCLOCK_ARC_LAYOUT("0"),
+    LSCLOCK_ARC_SLOT_1("battery"),
+    LSCLOCK_ARC_SLOT_2("memory"),
+    LSCLOCK_ARC_SLOT_3("temperature"),
+    LSCLOCK_ARC_SLOT_4("volume"),
+    LSCLOCK_ARC_BATTERY_MODE("0"),
 
     // Lockscreen - Weather
     LOCKSCREEN_WEATHER(false),

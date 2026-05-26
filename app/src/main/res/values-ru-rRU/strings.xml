@@ -1485,4 +1485,26 @@
     <string name="lockscreen_visualizer_smoothness_title">Плавность</string>
     <string name="lockscreen_visualizer_fps_title">FPS визуализатора</string>
 
+    <string name="lockscreen_clock_constructor_title">Конструктор</string>
+    <string name="lockscreen_clock_constructor_enable_title">Использовать конструктор кружков</string>
+    <string name="lockscreen_clock_constructor_enable_desc">Настраивает блок круговых виджетов без изменения выбранного стиля часов.</string>
+    <string name="lockscreen_clock_arc_layout_title">Расположение виджетов</string>
+    <string name="lockscreen_clock_arc_layout_original">Оригинал</string>
+    <string name="lockscreen_clock_arc_layout_row">В одну линию</string>
+    <string name="lockscreen_clock_arc_layout_grid">Сетка 2 x 2</string>
+    <string name="lockscreen_clock_arc_layout_column">Колонка</string>
+    <string name="lockscreen_clock_arc_layout_hidden">Скрыть</string>
+    <string name="lockscreen_clock_arc_slot_1_title">Виджет 1</string>
+    <string name="lockscreen_clock_arc_slot_2_title">Виджет 2</string>
+    <string name="lockscreen_clock_arc_slot_3_title">Виджет 3</string>
+    <string name="lockscreen_clock_arc_slot_4_title">Виджет 4</string>
+    <string name="lockscreen_clock_arc_widget_none">Нет</string>
+    <string name="lockscreen_clock_arc_widget_battery">Батарея</string>
+    <string name="lockscreen_clock_arc_widget_memory">Использование RAM</string>
+    <string name="lockscreen_clock_arc_widget_temperature">Температура</string>
+    <string name="lockscreen_clock_arc_widget_volume">Громкость</string>
+    <string name="lockscreen_clock_arc_widget_cpu">Нагрузка CPU</string>
+    <string name="lockscreen_clock_arc_battery_mode_title">Режим батареи</string>
+    <string name="lockscreen_clock_arc_battery_current">Ток mA</string>
+    <string name="lockscreen_clock_arc_battery_percent">Процент</string>
 </resources>
