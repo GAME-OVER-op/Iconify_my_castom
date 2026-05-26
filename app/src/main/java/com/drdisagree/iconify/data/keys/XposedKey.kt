@@ -227,6 +227,14 @@ enum class XposedKey(override val default: Any?) : Key {
     LSCLOCK_61_DATE_Y_OFFSET(0f),
     LSCLOCK_61_TIME_X_OFFSET(0f),
     LSCLOCK_61_TIME_Y_OFFSET(0f),
+    LSCLOCK_61_IMAGE_SHAPE("rounded_rect"),
+    LSCLOCK_61_IMAGE_CORNER_RADIUS(28f),
+    LSCLOCK_61_IMAGE_BORDER_WIDTH(1f),
+    LSCLOCK_61_IMAGE_SCALE_TYPE("center_crop"),
+    LSCLOCK_61_IMAGE_X_OFFSET(0f),
+    LSCLOCK_61_IMAGE_Y_OFFSET(0f),
+    LSCLOCK_61_TIME_POSITION("center"),
+    LSCLOCK_61_DATE_POSITION("above_image"),
 
     // Lockscreen - Weather
     LOCKSCREEN_WEATHER(false),

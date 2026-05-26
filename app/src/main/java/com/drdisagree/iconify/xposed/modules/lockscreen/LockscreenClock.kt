@@ -13,6 +13,7 @@ import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.AnimatedImageDrawable
 import android.graphics.drawable.Drawable
+import android.graphics.drawable.GradientDrawable
 import android.media.AudioManager
 import android.os.BatteryManager
 import android.os.Build
@@ -21,10 +22,12 @@ import android.os.Looper
 import android.os.UserHandle
 import android.os.UserManager
 import android.util.TypedValue
+import android.view.Gravity
 import android.view.LayoutInflater
 import android.view.View
 import android.view.View.OnAttachStateChangeListener
 import android.view.ViewGroup
+import android.widget.FrameLayout
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.ProgressBar
@@ -135,6 +138,14 @@ class LockscreenClock(context: Context) : ModPack(context) {
     private var clock61MediaHeight = 220
     private var clock61MediaTopMargin = 20
     private var clock61ImageOpacity = 100
+    private var clock61ImageShape = "rounded_rect"
+    private var clock61ImageCornerRadius = 28
+    private var clock61ImageBorderWidth = 1
+    private var clock61ImageScaleType = "center_crop"
+    private var clock61ImageXOffset = 0
+    private var clock61ImageYOffset = 0
+    private var clock61TimePosition = "center"
+    private var clock61DatePosition = "above_image"
     private var clock61DateXOffset = 0
     private var clock61DateYOffset = 0
     private var clock61TimeXOffset = 0
@@ -202,6 +213,14 @@ class LockscreenClock(context: Context) : ModPack(context) {
             clock61MediaHeight = getInt(XposedKey.LSCLOCK_61_MEDIA_HEIGHT)
             clock61MediaTopMargin = getInt(XposedKey.LSCLOCK_61_MEDIA_TOP_MARGIN)
             clock61ImageOpacity = getInt(XposedKey.LSCLOCK_61_IMAGE_OPACITY)
+            clock61ImageShape = getString(XposedKey.LSCLOCK_61_IMAGE_SHAPE)
+            clock61ImageCornerRadius = getInt(XposedKey.LSCLOCK_61_IMAGE_CORNER_RADIUS)
+            clock61ImageBorderWidth = getInt(XposedKey.LSCLOCK_61_IMAGE_BORDER_WIDTH)
+            clock61ImageScaleType = getString(XposedKey.LSCLOCK_61_IMAGE_SCALE_TYPE)
+            clock61ImageXOffset = getInt(XposedKey.LSCLOCK_61_IMAGE_X_OFFSET)
+            clock61ImageYOffset = getInt(XposedKey.LSCLOCK_61_IMAGE_Y_OFFSET)
+            clock61TimePosition = getString(XposedKey.LSCLOCK_61_TIME_POSITION)
+            clock61DatePosition = getString(XposedKey.LSCLOCK_61_DATE_POSITION)
             clock61DateXOffset = getInt(XposedKey.LSCLOCK_61_DATE_X_OFFSET)
             clock61DateYOffset = getInt(XposedKey.LSCLOCK_61_DATE_Y_OFFSET)
             clock61TimeXOffset = getInt(XposedKey.LSCLOCK_61_TIME_X_OFFSET)
@@ -223,6 +242,14 @@ class LockscreenClock(context: Context) : ModPack(context) {
                 XposedKey.LSCLOCK_61_MEDIA_HEIGHT.name,
                 XposedKey.LSCLOCK_61_MEDIA_TOP_MARGIN.name,
                 XposedKey.LSCLOCK_61_IMAGE_OPACITY.name,
+                XposedKey.LSCLOCK_61_IMAGE_SHAPE.name,
+                XposedKey.LSCLOCK_61_IMAGE_CORNER_RADIUS.name,
+                XposedKey.LSCLOCK_61_IMAGE_BORDER_WIDTH.name,
+                XposedKey.LSCLOCK_61_IMAGE_SCALE_TYPE.name,
+                XposedKey.LSCLOCK_61_IMAGE_X_OFFSET.name,
+                XposedKey.LSCLOCK_61_IMAGE_Y_OFFSET.name,
+                XposedKey.LSCLOCK_61_TIME_POSITION.name,
+                XposedKey.LSCLOCK_61_DATE_POSITION.name,
                 XposedKey.LSCLOCK_61_DATE_X_OFFSET.name,
                 XposedKey.LSCLOCK_61_DATE_Y_OFFSET.name,
                 XposedKey.LSCLOCK_61_TIME_X_OFFSET.name,
@@ -895,57 +922,151 @@ class LockscreenClock(context: Context) : ModPack(context) {
     }
 
     private fun applyClock61Customization(clockView: View) {
+        val root = clockView.findViewContainingTag("clock61_root") as? LinearLayout
         val mediaHost = clockView.findViewContainingTag("clock61_media_host") as? ViewGroup
+        val mediaImage = clockView.findViewContainingTag("clock61_media_image") as? ImageView
+        val dateTop = clockView.findViewContainingTag("clock61_date_top") as? TextView
+        val dateBottom = clockView.findViewContainingTag("clock61_date_bottom") as? TextView
+        val dateOverlay = clockView.findViewContainingTag("clock61_date_overlay") as? TextView
+        val timeTop = clockView.findViewContainingTag("clock61_time_top") as? TextView
+        val timeBottom = clockView.findViewContainingTag("clock61_time_bottom") as? TextView
+        val timeOverlay = clockView.findViewContainingTag("clock61_time_overlay") as? TextView
+
+        val widthPx = dpToPx(clock61MediaWidth)
+        val heightPx = dpToPx(clock61MediaHeight)
+        val topMarginPx = dpToPx(clock61MediaTopMargin)
+
         mediaHost?.layoutParams = (mediaHost?.layoutParams as? ViewGroup.MarginLayoutParams)?.apply {
-            width = TypedValue.applyDimension(
-                TypedValue.COMPLEX_UNIT_DIP,
-                clock61MediaWidth.toFloat(),
-                mContext.resources.displayMetrics
-            ).toInt()
-            height = TypedValue.applyDimension(
-                TypedValue.COMPLEX_UNIT_DIP,
-                clock61MediaHeight.toFloat(),
-                mContext.resources.displayMetrics
-            ).toInt()
-            topMargin = TypedValue.applyDimension(
-                TypedValue.COMPLEX_UNIT_DIP,
-                clock61MediaTopMargin.toFloat(),
-                mContext.resources.displayMetrics
-            ).toInt()
+            when (clock61ImageShape) {
+                "circle" -> {
+                    val size = minOf(widthPx, heightPx)
+                    width = size
+                    height = size
+                }
+                "oval_horizontal" -> {
+                    width = maxOf(widthPx, heightPx)
+                    height = minOf(widthPx, heightPx)
+                }
+                "oval_vertical" -> {
+                    width = minOf(widthPx, heightPx)
+                    height = maxOf(widthPx, heightPx)
+                }
+                else -> {
+                    width = widthPx
+                    height = heightPx
+                }
+            }
+            topMargin = topMarginPx
         }
         mediaHost?.requestLayout()
 
-        (clockView.findViewContainingTag("clock61_media_image") as? ImageView)?.apply {
+        val background = GradientDrawable().apply {
+            shape = if (clock61ImageShape in setOf("circle", "oval_horizontal", "oval_vertical")) {
+                GradientDrawable.OVAL
+            } else {
+                GradientDrawable.RECTANGLE
+            }
+            setColor(Color.parseColor("#14FFFFFF"))
+            if (shape == GradientDrawable.RECTANGLE) {
+                cornerRadius = if (clock61ImageShape == "rectangle") 0f else dpToPxF(clock61ImageCornerRadius)
+            }
+            val strokePx = dpToPx(clock61ImageBorderWidth)
+            setStroke(strokePx, Color.parseColor("#33FFFFFF"))
+        }
+        mediaHost?.background = background
+        mediaHost?.clipToOutline = true
+
+        mediaImage?.apply {
             alpha = clock61ImageOpacity / 100f
+            translationX = dpToPxF(clock61ImageXOffset)
+            translationY = dpToPxF(clock61ImageYOffset)
+            scaleType = when (clock61ImageScaleType) {
+                "fit_center" -> ImageView.ScaleType.FIT_CENTER
+                "center_inside" -> ImageView.ScaleType.CENTER_INSIDE
+                "fit_xy" -> ImageView.ScaleType.FIT_XY
+                else -> ImageView.ScaleType.CENTER_CROP
+            }
         }
 
-        (clockView.findViewContainingTag("clock61_date") as? TextView)?.apply {
-            translationX = TypedValue.applyDimension(
-                TypedValue.COMPLEX_UNIT_DIP,
-                clock61DateXOffset.toFloat(),
-                mContext.resources.displayMetrics
-            )
-            translationY = TypedValue.applyDimension(
-                TypedValue.COMPLEX_UNIT_DIP,
-                clock61DateYOffset.toFloat(),
-                mContext.resources.displayMetrics
-            )
+        listOf(dateTop, dateBottom, dateOverlay, timeTop, timeBottom, timeOverlay).forEach {
+            it?.visibility = View.GONE
+            it?.translationX = 0f
+            it?.translationY = 0f
         }
 
-        (clockView.findViewContainingTag("clock61_time_overlay") as? TextView)?.apply {
-            visibility = if (clock61ShowTimeOverlay) View.VISIBLE else View.GONE
-            translationX = TypedValue.applyDimension(
-                TypedValue.COMPLEX_UNIT_DIP,
-                clock61TimeXOffset.toFloat(),
-                mContext.resources.displayMetrics
-            )
-            translationY = TypedValue.applyDimension(
-                TypedValue.COMPLEX_UNIT_DIP,
-                clock61TimeYOffset.toFloat(),
-                mContext.resources.displayMetrics
-            )
+        when (clock61DatePosition) {
+            "on_image_top" -> dateOverlay?.apply {
+                visibility = View.VISIBLE
+                (layoutParams as? FrameLayout.LayoutParams)?.gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
+                translationX = dpToPxF(clock61DateXOffset)
+                translationY = dpToPxF(clock61DateYOffset)
+            }
+            "on_image_bottom" -> dateOverlay?.apply {
+                visibility = View.VISIBLE
+                (layoutParams as? FrameLayout.LayoutParams)?.gravity = Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL
+                translationX = dpToPxF(clock61DateXOffset)
+                translationY = dpToPxF(clock61DateYOffset)
+            }
+            "below_image" -> dateBottom?.apply {
+                visibility = View.VISIBLE
+                translationX = dpToPxF(clock61DateXOffset)
+                translationY = dpToPxF(clock61DateYOffset)
+            }
+            "hidden" -> Unit
+            else -> dateTop?.apply {
+                visibility = View.VISIBLE
+                translationX = dpToPxF(clock61DateXOffset)
+                translationY = dpToPxF(clock61DateYOffset)
+            }
         }
+
+        if (clock61ShowTimeOverlay) {
+            when (clock61TimePosition) {
+                "above_image" -> timeTop?.apply {
+                    visibility = View.VISIBLE
+                    translationX = dpToPxF(clock61TimeXOffset)
+                    translationY = dpToPxF(clock61TimeYOffset)
+                }
+                "below_image" -> timeBottom?.apply {
+                    visibility = View.VISIBLE
+                    translationX = dpToPxF(clock61TimeXOffset)
+                    translationY = dpToPxF(clock61TimeYOffset)
+                }
+                "hidden" -> Unit
+                else -> timeOverlay?.apply {
+                    visibility = View.VISIBLE
+                    val gravity = when (clock61TimePosition) {
+                        "top" -> Gravity.TOP or Gravity.CENTER_HORIZONTAL
+                        "bottom" -> Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL
+                        "left" -> Gravity.CENTER_VERTICAL or Gravity.START
+                        "right" -> Gravity.CENTER_VERTICAL or Gravity.END
+                        "top_left" -> Gravity.TOP or Gravity.START
+                        "top_right" -> Gravity.TOP or Gravity.END
+                        "bottom_left" -> Gravity.BOTTOM or Gravity.START
+                        "bottom_right" -> Gravity.BOTTOM or Gravity.END
+                        else -> Gravity.CENTER
+                    }
+                    (layoutParams as? FrameLayout.LayoutParams)?.gravity = gravity
+                    translationX = dpToPxF(clock61TimeXOffset)
+                    translationY = dpToPxF(clock61TimeYOffset)
+                }
+            }
+        }
+
+        root?.requestLayout()
     }
+
+    private fun dpToPx(value: Int): Int = TypedValue.applyDimension(
+        TypedValue.COMPLEX_UNIT_DIP,
+        value.toFloat(),
+        mContext.resources.displayMetrics
+    ).toInt()
+
+    private fun dpToPxF(value: Int): Float = TypedValue.applyDimension(
+        TypedValue.COMPLEX_UNIT_DIP,
+        value.toFloat(),
+        mContext.resources.displayMetrics
+    )
 
     private fun updateClockViewElements(clockView: View?) {
         if (clockView == null) return

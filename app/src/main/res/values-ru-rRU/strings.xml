@@ -1512,4 +1512,37 @@
     <string name="lockscreen_clock_arc_widget_temperature">Температура</string>
     <string name="lockscreen_clock_arc_widget_volume">Громкость</string>
     <string name="lockscreen_clock_arc_widget_cpu">Нагрузка CPU</string>
+
+    <string name="lockscreen_clock_61_image_shape_title">Форма изображения</string>
+    <string name="lockscreen_clock_61_image_corner_radius_title">Радиус скругления</string>
+    <string name="lockscreen_clock_61_image_border_width_title">Толщина рамки</string>
+    <string name="lockscreen_clock_61_image_scale_type_title">Тип масштабирования изображения</string>
+    <string name="lockscreen_clock_61_image_x_offset_title">Горизонтальное смещение изображения</string>
+    <string name="lockscreen_clock_61_image_y_offset_title">Вертикальное смещение изображения</string>
+    <string name="lockscreen_clock_61_time_position_title">Позиция времени</string>
+    <string name="lockscreen_clock_61_date_position_title">Позиция даты</string>
+    <string name="lockscreen_clock_61_image_shape_rectangle">Прямоугольник</string>
+    <string name="lockscreen_clock_61_image_shape_rounded_rectangle">Скруглённый прямоугольник</string>
+    <string name="lockscreen_clock_61_image_shape_circle">Круг</string>
+    <string name="lockscreen_clock_61_image_shape_oval_horizontal">Горизонтальный овал</string>
+    <string name="lockscreen_clock_61_image_shape_oval_vertical">Вертикальный овал</string>
+    <string name="lockscreen_clock_61_position_center">По центру</string>
+    <string name="lockscreen_clock_61_position_top">Сверху</string>
+    <string name="lockscreen_clock_61_position_bottom">Снизу</string>
+    <string name="lockscreen_clock_61_position_left">Слева</string>
+    <string name="lockscreen_clock_61_position_right">Справа</string>
+    <string name="lockscreen_clock_61_position_top_left">Сверху слева</string>
+    <string name="lockscreen_clock_61_position_top_right">Сверху справа</string>
+    <string name="lockscreen_clock_61_position_bottom_left">Снизу слева</string>
+    <string name="lockscreen_clock_61_position_bottom_right">Снизу справа</string>
+    <string name="lockscreen_clock_61_position_above_image">Над изображением</string>
+    <string name="lockscreen_clock_61_position_below_image">Под изображением</string>
+    <string name="lockscreen_clock_61_position_on_image_top">На изображении сверху</string>
+    <string name="lockscreen_clock_61_position_on_image_bottom">На изображении снизу</string>
+    <string name="lockscreen_clock_61_position_hidden">Скрыто</string>
+    <string name="lockscreen_clock_61_scale_center_crop">Обрезать по центру</string>
+    <string name="lockscreen_clock_61_scale_fit_center">Вписать по центру</string>
+    <string name="lockscreen_clock_61_scale_center_inside">Внутри по центру</string>
+    <string name="lockscreen_clock_61_scale_fit_xy">Растянуть по XY</string>
+
 </resources>

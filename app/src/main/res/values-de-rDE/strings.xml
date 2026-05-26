@@ -1513,4 +1513,37 @@ transparent machen</string>
     <string name="lockscreen_clock_arc_widget_temperature">Temperature</string>
     <string name="lockscreen_clock_arc_widget_volume">Volume</string>
     <string name="lockscreen_clock_arc_widget_cpu">CPU usage</string>
+
+    <string name="lockscreen_clock_61_image_shape_title">Image shape</string>
+    <string name="lockscreen_clock_61_image_corner_radius_title">Corner radius</string>
+    <string name="lockscreen_clock_61_image_border_width_title">Border width</string>
+    <string name="lockscreen_clock_61_image_scale_type_title">Image scale type</string>
+    <string name="lockscreen_clock_61_image_x_offset_title">Image horizontal offset</string>
+    <string name="lockscreen_clock_61_image_y_offset_title">Image vertical offset</string>
+    <string name="lockscreen_clock_61_time_position_title">Time position</string>
+    <string name="lockscreen_clock_61_date_position_title">Date position</string>
+    <string name="lockscreen_clock_61_image_shape_rectangle">Rectangle</string>
+    <string name="lockscreen_clock_61_image_shape_rounded_rectangle">Rounded rectangle</string>
+    <string name="lockscreen_clock_61_image_shape_circle">Circle</string>
+    <string name="lockscreen_clock_61_image_shape_oval_horizontal">Horizontal oval</string>
+    <string name="lockscreen_clock_61_image_shape_oval_vertical">Vertical oval</string>
+    <string name="lockscreen_clock_61_position_center">Center</string>
+    <string name="lockscreen_clock_61_position_top">Top</string>
+    <string name="lockscreen_clock_61_position_bottom">Bottom</string>
+    <string name="lockscreen_clock_61_position_left">Left</string>
+    <string name="lockscreen_clock_61_position_right">Right</string>
+    <string name="lockscreen_clock_61_position_top_left">Top left</string>
+    <string name="lockscreen_clock_61_position_top_right">Top right</string>
+    <string name="lockscreen_clock_61_position_bottom_left">Bottom left</string>
+    <string name="lockscreen_clock_61_position_bottom_right">Bottom right</string>
+    <string name="lockscreen_clock_61_position_above_image">Above image</string>
+    <string name="lockscreen_clock_61_position_below_image">Below image</string>
+    <string name="lockscreen_clock_61_position_on_image_top">On image top</string>
+    <string name="lockscreen_clock_61_position_on_image_bottom">On image bottom</string>
+    <string name="lockscreen_clock_61_position_hidden">Hidden</string>
+    <string name="lockscreen_clock_61_scale_center_crop">Center crop</string>
+    <string name="lockscreen_clock_61_scale_fit_center">Fit center</string>
+    <string name="lockscreen_clock_61_scale_center_inside">Center inside</string>
+    <string name="lockscreen_clock_61_scale_fit_xy">Fit XY</string>
+
 </resources>

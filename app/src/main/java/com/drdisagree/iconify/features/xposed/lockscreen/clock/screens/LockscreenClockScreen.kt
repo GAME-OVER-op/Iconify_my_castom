@@ -8,6 +8,7 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.drdisagree.iconify.R
 import com.drdisagree.iconify.core.preferences.PreferenceListener
 import com.drdisagree.iconify.core.preferences.PreferenceScreen
+import com.drdisagree.iconify.core.preferences.arrayRes
 import com.drdisagree.iconify.core.preferences.preferenceScreen
 import com.drdisagree.iconify.core.preferences.stringRes
 import com.drdisagree.iconify.core.ui.components.others.PreviewComposable
@@ -130,6 +131,82 @@ val lsClockPreferences = preferenceScreen {
             min = 10f,
             max = 100f,
             valueLabel = { "${it.roundToInt()}%" },
+            isVisible = { it.getInt(XposedKey.LSCLOCK_STYLE) == 61 },
+            isEnabled = { it.getBoolean(XposedKey.CUSTOM_LOCKSCREEN_CLOCK) }
+        )
+
+        listPref(
+            key = XposedKey.LSCLOCK_61_IMAGE_SHAPE,
+            title = stringRes(R.string.lockscreen_clock_61_image_shape_title),
+            entries = arrayRes(R.array.lockscreen_clock_61_image_shape_entries),
+            entryValues = arrayRes(R.array.lockscreen_clock_61_image_shape_values),
+            isVisible = { it.getInt(XposedKey.LSCLOCK_STYLE) == 61 },
+            isEnabled = { it.getBoolean(XposedKey.CUSTOM_LOCKSCREEN_CLOCK) }
+        )
+
+        slider(
+            key = XposedKey.LSCLOCK_61_IMAGE_CORNER_RADIUS,
+            title = stringRes(R.string.lockscreen_clock_61_image_corner_radius_title),
+            min = 0f,
+            max = 120f,
+            valueLabel = { "${it.roundToInt()}dp" },
+            isVisible = { it.getInt(XposedKey.LSCLOCK_STYLE) == 61 },
+            isEnabled = { it.getBoolean(XposedKey.CUSTOM_LOCKSCREEN_CLOCK) }
+        )
+
+        slider(
+            key = XposedKey.LSCLOCK_61_IMAGE_BORDER_WIDTH,
+            title = stringRes(R.string.lockscreen_clock_61_image_border_width_title),
+            min = 0f,
+            max = 12f,
+            valueLabel = { "${it.roundToInt()}dp" },
+            isVisible = { it.getInt(XposedKey.LSCLOCK_STYLE) == 61 },
+            isEnabled = { it.getBoolean(XposedKey.CUSTOM_LOCKSCREEN_CLOCK) }
+        )
+
+        listPref(
+            key = XposedKey.LSCLOCK_61_IMAGE_SCALE_TYPE,
+            title = stringRes(R.string.lockscreen_clock_61_image_scale_type_title),
+            entries = arrayRes(R.array.lockscreen_clock_61_image_scale_type_entries),
+            entryValues = arrayRes(R.array.lockscreen_clock_61_image_scale_type_values),
+            isVisible = { it.getInt(XposedKey.LSCLOCK_STYLE) == 61 },
+            isEnabled = { it.getBoolean(XposedKey.CUSTOM_LOCKSCREEN_CLOCK) }
+        )
+
+        slider(
+            key = XposedKey.LSCLOCK_61_IMAGE_X_OFFSET,
+            title = stringRes(R.string.lockscreen_clock_61_image_x_offset_title),
+            min = -160f,
+            max = 160f,
+            valueLabel = { "${it.roundToInt()}dp" },
+            isVisible = { it.getInt(XposedKey.LSCLOCK_STYLE) == 61 },
+            isEnabled = { it.getBoolean(XposedKey.CUSTOM_LOCKSCREEN_CLOCK) }
+        )
+
+        slider(
+            key = XposedKey.LSCLOCK_61_IMAGE_Y_OFFSET,
+            title = stringRes(R.string.lockscreen_clock_61_image_y_offset_title),
+            min = -160f,
+            max = 160f,
+            valueLabel = { "${it.roundToInt()}dp" },
+            isVisible = { it.getInt(XposedKey.LSCLOCK_STYLE) == 61 },
+            isEnabled = { it.getBoolean(XposedKey.CUSTOM_LOCKSCREEN_CLOCK) }
+        )
+
+        listPref(
+            key = XposedKey.LSCLOCK_61_TIME_POSITION,
+            title = stringRes(R.string.lockscreen_clock_61_time_position_title),
+            entries = arrayRes(R.array.lockscreen_clock_61_time_position_entries),
+            entryValues = arrayRes(R.array.lockscreen_clock_61_time_position_values),
+            isVisible = { it.getInt(XposedKey.LSCLOCK_STYLE) == 61 },
+            isEnabled = { it.getBoolean(XposedKey.CUSTOM_LOCKSCREEN_CLOCK) }
+        )
+
+        listPref(
+            key = XposedKey.LSCLOCK_61_DATE_POSITION,
+            title = stringRes(R.string.lockscreen_clock_61_date_position_title),
+            entries = arrayRes(R.array.lockscreen_clock_61_date_position_entries),
+            entryValues = arrayRes(R.array.lockscreen_clock_61_date_position_values),
             isVisible = { it.getInt(XposedKey.LSCLOCK_STYLE) == 61 },
             isEnabled = { it.getBoolean(XposedKey.CUSTOM_LOCKSCREEN_CLOCK) }
         )

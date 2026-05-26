@@ -552,48 +552,80 @@
     </string-array>
 
 
-    <string-array name="lockscreen_clock_arc_layout_entries" translatable="false">
-        <item>@string/lockscreen_clock_arc_layout_original</item>
-        <item>@string/lockscreen_clock_arc_layout_row</item>
-        <item>@string/lockscreen_clock_arc_layout_grid</item>
-        <item>@string/lockscreen_clock_arc_layout_column</item>
-        <item>@string/lockscreen_clock_arc_layout_hidden</item>
+    <string-array name="lockscreen_clock_61_image_shape_entries">
+        <item>@string/lockscreen_clock_61_image_shape_rectangle</item>
+        <item>@string/lockscreen_clock_61_image_shape_rounded_rectangle</item>
+        <item>@string/lockscreen_clock_61_image_shape_circle</item>
+        <item>@string/lockscreen_clock_61_image_shape_oval_horizontal</item>
+        <item>@string/lockscreen_clock_61_image_shape_oval_vertical</item>
     </string-array>
 
-    <string-array name="lockscreen_clock_arc_layout_values" translatable="false">
-        <item>0</item>
-        <item>1</item>
-        <item>2</item>
-        <item>3</item>
-        <item>4</item>
+    <string-array name="lockscreen_clock_61_image_shape_values" translatable="false">
+        <item>rectangle</item>
+        <item>rounded_rect</item>
+        <item>circle</item>
+        <item>oval_horizontal</item>
+        <item>oval_vertical</item>
     </string-array>
 
-    <string-array name="lockscreen_clock_arc_widget_entries" translatable="false">
-        <item>@string/lockscreen_clock_arc_widget_none</item>
-        <item>@string/lockscreen_clock_arc_widget_battery</item>
-        <item>@string/lockscreen_clock_arc_widget_memory</item>
-        <item>@string/lockscreen_clock_arc_widget_temperature</item>
-        <item>@string/lockscreen_clock_arc_widget_volume</item>
-        <item>@string/lockscreen_clock_arc_widget_cpu</item>
+    <string-array name="lockscreen_clock_61_time_position_entries">
+        <item>@string/lockscreen_clock_61_position_center</item>
+        <item>@string/lockscreen_clock_61_position_top</item>
+        <item>@string/lockscreen_clock_61_position_bottom</item>
+        <item>@string/lockscreen_clock_61_position_left</item>
+        <item>@string/lockscreen_clock_61_position_right</item>
+        <item>@string/lockscreen_clock_61_position_top_left</item>
+        <item>@string/lockscreen_clock_61_position_top_right</item>
+        <item>@string/lockscreen_clock_61_position_bottom_left</item>
+        <item>@string/lockscreen_clock_61_position_bottom_right</item>
+        <item>@string/lockscreen_clock_61_position_above_image</item>
+        <item>@string/lockscreen_clock_61_position_below_image</item>
+        <item>@string/lockscreen_clock_61_position_hidden</item>
     </string-array>
 
-    <string-array name="lockscreen_clock_arc_widget_values" translatable="false">
-        <item>none</item>
-        <item>battery</item>
-        <item>memory</item>
-        <item>temperature</item>
-        <item>volume</item>
-        <item>cpu</item>
+    <string-array name="lockscreen_clock_61_time_position_values" translatable="false">
+        <item>center</item>
+        <item>top</item>
+        <item>bottom</item>
+        <item>left</item>
+        <item>right</item>
+        <item>top_left</item>
+        <item>top_right</item>
+        <item>bottom_left</item>
+        <item>bottom_right</item>
+        <item>above_image</item>
+        <item>below_image</item>
+        <item>hidden</item>
     </string-array>
 
-    <string-array name="lockscreen_clock_arc_battery_mode_entries" translatable="false">
-        <item>@string/lockscreen_clock_arc_battery_current</item>
-        <item>@string/lockscreen_clock_arc_battery_percent</item>
+    <string-array name="lockscreen_clock_61_date_position_entries">
+        <item>@string/lockscreen_clock_61_position_above_image</item>
+        <item>@string/lockscreen_clock_61_position_on_image_top</item>
+        <item>@string/lockscreen_clock_61_position_on_image_bottom</item>
+        <item>@string/lockscreen_clock_61_position_below_image</item>
+        <item>@string/lockscreen_clock_61_position_hidden</item>
     </string-array>
 
-    <string-array name="lockscreen_clock_arc_battery_mode_values" translatable="false">
-        <item>0</item>
-        <item>1</item>
+    <string-array name="lockscreen_clock_61_date_position_values" translatable="false">
+        <item>above_image</item>
+        <item>on_image_top</item>
+        <item>on_image_bottom</item>
+        <item>below_image</item>
+        <item>hidden</item>
+    </string-array>
+
+    <string-array name="lockscreen_clock_61_image_scale_type_entries">
+        <item>@string/lockscreen_clock_61_scale_center_crop</item>
+        <item>@string/lockscreen_clock_61_scale_fit_center</item>
+        <item>@string/lockscreen_clock_61_scale_center_inside</item>
+        <item>@string/lockscreen_clock_61_scale_fit_xy</item>
+    </string-array>
+
+    <string-array name="lockscreen_clock_61_image_scale_type_values" translatable="false">
+        <item>center_crop</item>
+        <item>fit_center</item>
+        <item>center_inside</item>
+        <item>fit_xy</item>
     </string-array>
 
 </resources>

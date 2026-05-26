@@ -4,7 +4,8 @@
     android:layout_height="wrap_content"
     android:layout_gravity="center_horizontal|top"
     android:gravity="center_horizontal|top"
-    android:orientation="vertical">
+    android:orientation="vertical"
+    android:tag="clock61_root">
 
     <TextClock
         android:layout_width="wrap_content"
@@ -15,11 +16,28 @@
         android:gravity="center"
         android:includeFontPadding="false"
         android:singleLine="true"
-        android:tag="text1|nolineheight|clock61_date"
+        android:tag="text1|nolineheight|clock61_date_top"
         android:textAlignment="center"
         android:textColor="@android:color/white"
         android:textSize="22dp"
         android:textStyle="bold" />
+
+    <TextClock
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:alpha="0.95"
+        android:fontFamily="@font/sf_pro_stencil"
+        android:format12Hour="hh:mm"
+        android:format24Hour="HH:mm"
+        android:gravity="center"
+        android:includeFontPadding="false"
+        android:singleLine="true"
+        android:tag="text1|clock61_time_top"
+        android:textAlignment="center"
+        android:textColor="@android:color/white"
+        android:textSize="62dp"
+        android:textStyle="bold"
+        android:visibility="gone" />
 
     <FrameLayout
         android:layout_width="220dp"
@@ -42,7 +60,26 @@
         <View
             android:layout_width="match_parent"
             android:layout_height="match_parent"
-            android:background="#22000000" />
+            android:background="#22000000"
+            android:tag="clock61_media_scrim" />
+
+        <TextClock
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="top|center_horizontal"
+            android:layout_marginTop="12dp"
+            android:alpha="0.9"
+            android:format12Hour="EEEE, MMMM dd"
+            android:format24Hour="EEEE, dd MMMM"
+            android:gravity="center"
+            android:includeFontPadding="false"
+            android:singleLine="true"
+            android:tag="text1|nolineheight|clock61_date_overlay"
+            android:textAlignment="center"
+            android:textColor="@android:color/white"
+            android:textSize="22dp"
+            android:textStyle="bold"
+            android:visibility="gone" />
 
         <TextClock
             android:layout_width="wrap_content"
@@ -61,4 +98,37 @@
             android:textSize="62dp"
             android:textStyle="bold" />
     </FrameLayout>
+
+    <TextClock
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:alpha="0.95"
+        android:fontFamily="@font/sf_pro_stencil"
+        android:format12Hour="hh:mm"
+        android:format24Hour="HH:mm"
+        android:gravity="center"
+        android:includeFontPadding="false"
+        android:singleLine="true"
+        android:tag="text1|clock61_time_bottom"
+        android:textAlignment="center"
+        android:textColor="@android:color/white"
+        android:textSize="62dp"
+        android:textStyle="bold"
+        android:visibility="gone" />
+
+    <TextClock
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:alpha="0.9"
+        android:format12Hour="EEEE, MMMM dd"
+        android:format24Hour="EEEE, dd MMMM"
+        android:gravity="center"
+        android:includeFontPadding="false"
+        android:singleLine="true"
+        android:tag="text1|nolineheight|clock61_date_bottom"
+        android:textAlignment="center"
+        android:textColor="@android:color/white"
+        android:textSize="22dp"
+        android:textStyle="bold"
+        android:visibility="gone" />
 </LinearLayout>
