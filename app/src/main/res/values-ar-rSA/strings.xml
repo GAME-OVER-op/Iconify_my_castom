@@ -1498,4 +1498,18 @@
     <string name="lockscreen_clock_61_time_x_offset_title">Time horizontal offset</string>
     <string name="lockscreen_clock_61_time_y_offset_title">Time vertical offset</string>
 
+
+    <string name="lockscreen_clock_arc_battery_current">Current mA</string>
+    <string name="lockscreen_clock_arc_battery_percent">Percentage</string>
+    <string name="lockscreen_clock_arc_layout_original">Original</string>
+    <string name="lockscreen_clock_arc_layout_row">One line</string>
+    <string name="lockscreen_clock_arc_layout_grid">2 x 2 grid</string>
+    <string name="lockscreen_clock_arc_layout_column">Column</string>
+    <string name="lockscreen_clock_arc_layout_hidden">Hidden</string>
+    <string name="lockscreen_clock_arc_widget_none">None</string>
+    <string name="lockscreen_clock_arc_widget_battery">Battery</string>
+    <string name="lockscreen_clock_arc_widget_memory">RAM usage</string>
+    <string name="lockscreen_clock_arc_widget_temperature">Temperature</string>
+    <string name="lockscreen_clock_arc_widget_volume">Volume</string>
+    <string name="lockscreen_clock_arc_widget_cpu">CPU usage</string>
 </resources>

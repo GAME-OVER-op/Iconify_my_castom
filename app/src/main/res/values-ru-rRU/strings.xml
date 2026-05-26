@@ -1498,4 +1498,18 @@
     <string name="lockscreen_clock_61_time_x_offset_title">Time horizontal offset</string>
     <string name="lockscreen_clock_61_time_y_offset_title">Time vertical offset</string>
 
+
+    <string name="lockscreen_clock_arc_battery_current">Ток mA</string>
+    <string name="lockscreen_clock_arc_battery_percent">Процент</string>
+    <string name="lockscreen_clock_arc_layout_original">Оригинал</string>
+    <string name="lockscreen_clock_arc_layout_row">Одна линия</string>
+    <string name="lockscreen_clock_arc_layout_grid">Сетка 2 x 2</string>
+    <string name="lockscreen_clock_arc_layout_column">Колонка</string>
+    <string name="lockscreen_clock_arc_layout_hidden">Скрыто</string>
+    <string name="lockscreen_clock_arc_widget_none">Нет</string>
+    <string name="lockscreen_clock_arc_widget_battery">Батарея</string>
+    <string name="lockscreen_clock_arc_widget_memory">ОЗУ</string>
+    <string name="lockscreen_clock_arc_widget_temperature">Температура</string>
+    <string name="lockscreen_clock_arc_widget_volume">Громкость</string>
+    <string name="lockscreen_clock_arc_widget_cpu">Нагрузка CPU</string>
 </resources>
