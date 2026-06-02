@@ -8,12 +8,9 @@ import android.content.Intent
 import android.content.IntentFilter
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
-import android.graphics.ImageDecoder
 import android.graphics.Color
 import android.graphics.Typeface
-import android.graphics.drawable.AnimatedImageDrawable
 import android.graphics.drawable.Drawable
-import android.graphics.drawable.GradientDrawable
 import android.media.AudioManager
 import android.os.BatteryManager
 import android.os.Build
@@ -21,13 +18,10 @@ import android.os.Handler
 import android.os.Looper
 import android.os.UserHandle
 import android.os.UserManager
-import android.util.TypedValue
-import android.view.Gravity
 import android.view.LayoutInflater
 import android.view.View
 import android.view.View.OnAttachStateChangeListener
 import android.view.ViewGroup
-import android.widget.FrameLayout
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.ProgressBar
@@ -116,7 +110,6 @@ class LockscreenClock(context: Context) : ModPack(context) {
     private var mBatteryLevelArcProgress: ArcProgressImageView? = null
     private var mTemperatureArcProgress: ArcProgressImageView? = null
     private var mCpuUsageArcProgress: ArcProgressImageView? = null
-    private val mCustomArcProgressViews = mutableListOf<ArcProgressImageView>()
     private var mAccentColor1 = 0
     private var mAccentColor2 = 0
     private var mAccentColor3 = 0
@@ -134,30 +127,6 @@ class LockscreenClock(context: Context) : ModPack(context) {
     private var customDeviceName = ""
     private var customFontEnabled = false
     private var customImageEnabled = false
-    private var arcConstructorEnabled = false
-    private var arcLayoutMode = "0"
-    private var arcSlot1 = "battery"
-    private var arcSlot2 = "memory"
-    private var arcSlot3 = "temperature"
-    private var arcSlot4 = "volume"
-    private var arcBatteryMode = "0"
-    private var clock61ShowTimeOverlay = true
-    private var clock61MediaWidth = 220
-    private var clock61MediaHeight = 220
-    private var clock61MediaTopMargin = 20
-    private var clock61ImageOpacity = 100
-    private var clock61ImageShape = "rounded_rect"
-    private var clock61ImageCornerRadius = 28
-    private var clock61ImageBorderWidth = 1
-    private var clock61ImageScaleType = "center_crop"
-    private var clock61ImageXOffset = 0
-    private var clock61ImageYOffset = 0
-    private var clock61TimePosition = "center"
-    private var clock61DatePosition = "above_image"
-    private var clock61DateXOffset = 0
-    private var clock61DateYOffset = 0
-    private var clock61TimeXOffset = 0
-    private var clock61TimeYOffset = 0
     private var currentClockView: View? = null
 
     private val coroutineScope = CoroutineScope(Dispatchers.Main + Job())
@@ -216,30 +185,6 @@ class LockscreenClock(context: Context) : ModPack(context) {
             customFontEnabled = getString(XposedKey.LSCLOCK_FONT_FILE_URI).isNotEmpty()
             customImageEnabled = getString(XposedKey.LSCLOCK_IMAGE1_FILE_URI).isNotEmpty() ||
                     getString(XposedKey.LSCLOCK_IMAGE2_FILE_URI).isNotEmpty()
-            arcConstructorEnabled = getBoolean(XposedKey.LSCLOCK_ARC_CONSTRUCTOR)
-            arcLayoutMode = getString(XposedKey.LSCLOCK_ARC_LAYOUT)
-            arcSlot1 = getString(XposedKey.LSCLOCK_ARC_SLOT_1)
-            arcSlot2 = getString(XposedKey.LSCLOCK_ARC_SLOT_2)
-            arcSlot3 = getString(XposedKey.LSCLOCK_ARC_SLOT_3)
-            arcSlot4 = getString(XposedKey.LSCLOCK_ARC_SLOT_4)
-            arcBatteryMode = getString(XposedKey.LSCLOCK_ARC_BATTERY_MODE)
-            clock61ShowTimeOverlay = getBoolean(XposedKey.LSCLOCK_61_SHOW_TIME_OVERLAY)
-            clock61MediaWidth = getInt(XposedKey.LSCLOCK_61_MEDIA_WIDTH)
-            clock61MediaHeight = getInt(XposedKey.LSCLOCK_61_MEDIA_HEIGHT)
-            clock61MediaTopMargin = getInt(XposedKey.LSCLOCK_61_MEDIA_TOP_MARGIN)
-            clock61ImageOpacity = getInt(XposedKey.LSCLOCK_61_IMAGE_OPACITY)
-            clock61ImageShape = getString(XposedKey.LSCLOCK_61_IMAGE_SHAPE)
-            clock61ImageCornerRadius = getInt(XposedKey.LSCLOCK_61_IMAGE_CORNER_RADIUS)
-            clock61ImageBorderWidth = getInt(XposedKey.LSCLOCK_61_IMAGE_BORDER_WIDTH)
-            clock61ImageScaleType = getString(XposedKey.LSCLOCK_61_IMAGE_SCALE_TYPE)
-            clock61ImageXOffset = getInt(XposedKey.LSCLOCK_61_IMAGE_X_OFFSET)
-            clock61ImageYOffset = getInt(XposedKey.LSCLOCK_61_IMAGE_Y_OFFSET)
-            clock61TimePosition = getString(XposedKey.LSCLOCK_61_TIME_POSITION)
-            clock61DatePosition = getString(XposedKey.LSCLOCK_61_DATE_POSITION)
-            clock61DateXOffset = getInt(XposedKey.LSCLOCK_61_DATE_X_OFFSET)
-            clock61DateYOffset = getInt(XposedKey.LSCLOCK_61_DATE_Y_OFFSET)
-            clock61TimeXOffset = getInt(XposedKey.LSCLOCK_61_TIME_X_OFFSET)
-            clock61TimeYOffset = getInt(XposedKey.LSCLOCK_61_TIME_Y_OFFSET)
         }
 
         resetStockClock()
@@ -251,31 +196,7 @@ class LockscreenClock(context: Context) : ModPack(context) {
                 XposedKey.LSCLOCK_FONT_FILE_URI.name,
                 XposedKey.LSCLOCK_CUSTOM_COLOR.name,
                 XposedKey.LSCLOCK_LINE_HEIGHT.name,
-                XposedKey.LSCLOCK_TEXT_SCALE.name,
-                XposedKey.LSCLOCK_ARC_CONSTRUCTOR.name,
-                XposedKey.LSCLOCK_ARC_LAYOUT.name,
-                XposedKey.LSCLOCK_ARC_SLOT_1.name,
-                XposedKey.LSCLOCK_ARC_SLOT_2.name,
-                XposedKey.LSCLOCK_ARC_SLOT_3.name,
-                XposedKey.LSCLOCK_ARC_SLOT_4.name,
-                XposedKey.LSCLOCK_ARC_BATTERY_MODE.name,
-                XposedKey.LSCLOCK_61_SHOW_TIME_OVERLAY.name,
-                XposedKey.LSCLOCK_61_MEDIA_WIDTH.name,
-                XposedKey.LSCLOCK_61_MEDIA_HEIGHT.name,
-                XposedKey.LSCLOCK_61_MEDIA_TOP_MARGIN.name,
-                XposedKey.LSCLOCK_61_IMAGE_OPACITY.name,
-                XposedKey.LSCLOCK_61_IMAGE_SHAPE.name,
-                XposedKey.LSCLOCK_61_IMAGE_CORNER_RADIUS.name,
-                XposedKey.LSCLOCK_61_IMAGE_BORDER_WIDTH.name,
-                XposedKey.LSCLOCK_61_IMAGE_SCALE_TYPE.name,
-                XposedKey.LSCLOCK_61_IMAGE_X_OFFSET.name,
-                XposedKey.LSCLOCK_61_IMAGE_Y_OFFSET.name,
-                XposedKey.LSCLOCK_61_TIME_POSITION.name,
-                XposedKey.LSCLOCK_61_DATE_POSITION.name,
-                XposedKey.LSCLOCK_61_DATE_X_OFFSET.name,
-                XposedKey.LSCLOCK_61_DATE_Y_OFFSET.name,
-                XposedKey.LSCLOCK_61_TIME_X_OFFSET.name,
-                XposedKey.LSCLOCK_61_TIME_Y_OFFSET.name
+                XposedKey.LSCLOCK_TEXT_SCALE.name
             ) -> updateClockView(true)
 
             in setOf(
@@ -795,7 +716,7 @@ class LockscreenClock(context: Context) : ModPack(context) {
             mBatteryLevelArcProgress,
             mTemperatureArcProgress,
             mCpuUsageArcProgress
-        ) + mCustomArcProgressViews
+        )
 
     private fun modifyClockView(clockView: View?) {
         if (!XprefsIsInitialized || mLsItemsContainer == null || clockView == null) return
@@ -829,24 +750,38 @@ class LockscreenClock(context: Context) : ModPack(context) {
             ).forEach { (tag, path) ->
                 if (File(path).exists()) {
                     clockView.findViewContainingTag(tag)?.let { view ->
-                        val drawable = loadClockImageDrawable(path, tag) ?: return@let
+                        val bitmap = BitmapFactory.decodeFile(path)
+
+                        val isRoundedImage = (clockStyle == 26 && tag.contains("1")) ||
+                                clockStyle in setOf(27, 30, 40, 53)
+                        val isCircleImage = (clockStyle == 26 && tag.contains("2")) ||
+                                clockStyle == 39
+                        val roundedSize = 32f
+
+                        val drawable: Drawable = when {
+                            isRoundedImage -> RoundedBitmapDrawableFactory
+                                .create(mContext.resources, bitmap)
+                                .apply {
+                                    setCornerRadius(roundedSize)
+                                }
+
+                            isCircleImage -> RoundedBitmapDrawableFactory
+                                .create(mContext.resources, bitmap)
+                                .apply {
+                                    setCornerRadius(12000f)
+                                }
+
+                            else -> bitmap.toDrawable(view.resources)
+                        }
 
                         if (view is ImageView) {
                             view.setImageDrawable(drawable)
-                            if (drawable is AnimatedImageDrawable) {
-                                drawable.repeatCount = AnimatedImageDrawable.REPEAT_INFINITE
-                                drawable.start()
-                            }
                         } else {
                             view.background = drawable
                         }
                     }
                 }
             }
-        }
-
-        if (clockStyle == 61) {
-            applyClock61Customization(clockView)
         }
 
         mBatteryLevelView = null
@@ -859,7 +794,6 @@ class LockscreenClock(context: Context) : ModPack(context) {
         mBatteryLevelArcProgress = null
         mTemperatureArcProgress = null
         mCpuUsageArcProgress = null
-        mCustomArcProgressViews.clear()
 
         clockView.apply {
             when (clockStyle) {
@@ -879,17 +813,18 @@ class LockscreenClock(context: Context) : ModPack(context) {
                 }
 
                 56 -> {
-                    if (arcConstructorEnabled) {
-                        buildArcWidgetConstructor()
-                    } else {
-                        addArcProgressView("volume_progress")
-                        addArcProgressView("ram_usage_info")
-                        addArcProgressView("battery_progress_arc")
-                        addArcProgressView("temperature_progress")
-                    }
+                    addArcProgressView("volume_progress")
+                    addArcProgressView("ram_usage_info")
+                    addArcProgressView("battery_progress_arc")
+                    addArcProgressView("temperature_progress")
                 }
 
-                61 -> Unit
+                61 -> {
+                    addArcProgressView("battery_progress_arc")
+                    addArcProgressView("ram_usage_info")
+                    addArcProgressView("temperature_progress")
+                    addArcProgressView("cpu_usage_info")
+                }
 
                 else -> {}
             }
@@ -915,185 +850,6 @@ class LockscreenClock(context: Context) : ModPack(context) {
         val imageView = clockView.findViewContainingTag("profile_picture") as ImageView?
         userImage?.let { imageView?.setImageDrawable(it) }
     }
-
-    private fun loadClockImageDrawable(path: String, tag: String): Drawable? {
-        if (clockStyle == 61 && Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-            runCatching {
-                return ImageDecoder.decodeDrawable(ImageDecoder.createSource(File(path)))
-            }
-        }
-
-        val bitmap = BitmapFactory.decodeFile(path) ?: return null
-
-        val isRoundedImage = (clockStyle == 26 && tag.contains("1")) ||
-                clockStyle in setOf(27, 30, 40, 53)
-        val isCircleImage = (clockStyle == 26 && tag.contains("2")) ||
-                clockStyle == 39
-        val roundedSize = 32f
-
-        return when {
-            isRoundedImage -> RoundedBitmapDrawableFactory
-                .create(mContext.resources, bitmap)
-                .apply {
-                    cornerRadius = roundedSize
-                }
-
-            isCircleImage -> RoundedBitmapDrawableFactory
-                .create(mContext.resources, bitmap)
-                .apply {
-                    cornerRadius = 12000f
-                }
-
-            else -> bitmap.toDrawable(mContext.resources)
-        }
-    }
-
-    private fun applyClock61Customization(clockView: View) {
-        val root = clockView.findViewContainingTag("clock61_root") as? LinearLayout
-        val mediaHost = clockView.findViewContainingTag("clock61_media_host") as? ViewGroup
-        val mediaImage = clockView.findViewContainingTag("clock61_media_image") as? ImageView
-        val dateTop = clockView.findViewContainingTag("clock61_date_top") as? TextView
-        val dateBottom = clockView.findViewContainingTag("clock61_date_bottom") as? TextView
-        val dateOverlay = clockView.findViewContainingTag("clock61_date_overlay") as? TextView
-        val timeTop = clockView.findViewContainingTag("clock61_time_top") as? TextView
-        val timeBottom = clockView.findViewContainingTag("clock61_time_bottom") as? TextView
-        val timeOverlay = clockView.findViewContainingTag("clock61_time_overlay") as? TextView
-
-        val widthPx = dpToPx(clock61MediaWidth)
-        val heightPx = dpToPx(clock61MediaHeight)
-        val topMarginPx = dpToPx(clock61MediaTopMargin)
-
-        mediaHost?.layoutParams = (mediaHost?.layoutParams as? ViewGroup.MarginLayoutParams)?.apply {
-            when (clock61ImageShape) {
-                "circle" -> {
-                    val size = minOf(widthPx, heightPx)
-                    width = size
-                    height = size
-                }
-                "oval_horizontal" -> {
-                    width = maxOf(widthPx, heightPx)
-                    height = minOf(widthPx, heightPx)
-                }
-                "oval_vertical" -> {
-                    width = minOf(widthPx, heightPx)
-                    height = maxOf(widthPx, heightPx)
-                }
-                else -> {
-                    width = widthPx
-                    height = heightPx
-                }
-            }
-            topMargin = topMarginPx
-        }
-        mediaHost?.requestLayout()
-
-        val background = GradientDrawable().apply {
-            shape = if (clock61ImageShape in setOf("circle", "oval_horizontal", "oval_vertical")) {
-                GradientDrawable.OVAL
-            } else {
-                GradientDrawable.RECTANGLE
-            }
-            setColor(Color.parseColor("#14FFFFFF"))
-            if (shape == GradientDrawable.RECTANGLE) {
-                cornerRadius = if (clock61ImageShape == "rectangle") 0f else dpToPxF(clock61ImageCornerRadius)
-            }
-            val strokePx = dpToPx(clock61ImageBorderWidth)
-            setStroke(strokePx, Color.parseColor("#33FFFFFF"))
-        }
-        mediaHost?.background = background
-        mediaHost?.clipToOutline = true
-
-        mediaImage?.apply {
-            alpha = clock61ImageOpacity / 100f
-            translationX = dpToPxF(clock61ImageXOffset)
-            translationY = dpToPxF(clock61ImageYOffset)
-            scaleType = when (clock61ImageScaleType) {
-                "fit_center" -> ImageView.ScaleType.FIT_CENTER
-                "center_inside" -> ImageView.ScaleType.CENTER_INSIDE
-                "fit_xy" -> ImageView.ScaleType.FIT_XY
-                else -> ImageView.ScaleType.CENTER_CROP
-            }
-        }
-
-        listOf(dateTop, dateBottom, dateOverlay, timeTop, timeBottom, timeOverlay).forEach {
-            it?.visibility = View.GONE
-            it?.translationX = 0f
-            it?.translationY = 0f
-        }
-
-        when (clock61DatePosition) {
-            "on_image_top" -> dateOverlay?.apply {
-                visibility = View.VISIBLE
-                (layoutParams as? FrameLayout.LayoutParams)?.gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
-                translationX = dpToPxF(clock61DateXOffset)
-                translationY = dpToPxF(clock61DateYOffset)
-            }
-            "on_image_bottom" -> dateOverlay?.apply {
-                visibility = View.VISIBLE
-                (layoutParams as? FrameLayout.LayoutParams)?.gravity = Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL
-                translationX = dpToPxF(clock61DateXOffset)
-                translationY = dpToPxF(clock61DateYOffset)
-            }
-            "below_image" -> dateBottom?.apply {
-                visibility = View.VISIBLE
-                translationX = dpToPxF(clock61DateXOffset)
-                translationY = dpToPxF(clock61DateYOffset)
-            }
-            "hidden" -> Unit
-            else -> dateTop?.apply {
-                visibility = View.VISIBLE
-                translationX = dpToPxF(clock61DateXOffset)
-                translationY = dpToPxF(clock61DateYOffset)
-            }
-        }
-
-        if (clock61ShowTimeOverlay) {
-            when (clock61TimePosition) {
-                "above_image" -> timeTop?.apply {
-                    visibility = View.VISIBLE
-                    translationX = dpToPxF(clock61TimeXOffset)
-                    translationY = dpToPxF(clock61TimeYOffset)
-                }
-                "below_image" -> timeBottom?.apply {
-                    visibility = View.VISIBLE
-                    translationX = dpToPxF(clock61TimeXOffset)
-                    translationY = dpToPxF(clock61TimeYOffset)
-                }
-                "hidden" -> Unit
-                else -> timeOverlay?.apply {
-                    visibility = View.VISIBLE
-                    val gravity = when (clock61TimePosition) {
-                        "top" -> Gravity.TOP or Gravity.CENTER_HORIZONTAL
-                        "bottom" -> Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL
-                        "left" -> Gravity.CENTER_VERTICAL or Gravity.START
-                        "right" -> Gravity.CENTER_VERTICAL or Gravity.END
-                        "top_left" -> Gravity.TOP or Gravity.START
-                        "top_right" -> Gravity.TOP or Gravity.END
-                        "bottom_left" -> Gravity.BOTTOM or Gravity.START
-                        "bottom_right" -> Gravity.BOTTOM or Gravity.END
-                        else -> Gravity.CENTER
-                    }
-                    (layoutParams as? FrameLayout.LayoutParams)?.gravity = gravity
-                    translationX = dpToPxF(clock61TimeXOffset)
-                    translationY = dpToPxF(clock61TimeYOffset)
-                }
-            }
-        }
-
-        root?.requestLayout()
-    }
-
-    private fun dpToPx(value: Int): Int = TypedValue.applyDimension(
-        TypedValue.COMPLEX_UNIT_DIP,
-        value.toFloat(),
-        mContext.resources.displayMetrics
-    ).toInt()
-
-    private fun dpToPxF(value: Int): Float = TypedValue.applyDimension(
-        TypedValue.COMPLEX_UNIT_DIP,
-        value.toFloat(),
-        mContext.resources.displayMetrics
-    )
 
     private fun updateClockViewElements(clockView: View?) {
         if (clockView == null) return
@@ -1159,122 +915,6 @@ class LockscreenClock(context: Context) : ModPack(context) {
         }
     }
 
-    private fun View.buildArcWidgetConstructor() {
-        val container = findArcWidgetsContainer() ?: return
-        val widgetTags = listOf(arcSlot1, arcSlot2, arcSlot3, arcSlot4)
-            .mapNotNull { it.toArcProgressTag() }
-
-        container.visibility = if (arcLayoutMode == "4" || widgetTags.isEmpty()) {
-            View.GONE
-        } else {
-            View.VISIBLE
-        }
-        container.removeAllViews()
-
-        if (container.visibility == View.GONE) return
-
-        when (arcLayoutMode) {
-            "0", "1" -> buildArcRow(container, widgetTags)
-            "2" -> buildArcGrid(container, widgetTags)
-            "3" -> buildArcColumn(container, widgetTags)
-            else -> buildArcRow(container, widgetTags)
-        }
-    }
-
-    private fun View.findArcWidgetsContainer(): LinearLayout? {
-        val knownTags = listOf(
-            "battery_progress_arc",
-            "ram_usage_info",
-            "temperature_progress",
-            "volume_progress",
-            "cpu_usage_info"
-        )
-
-        knownTags.forEach { tag ->
-            val widgetContainer = findViewContainingTag(tag)
-            val parent = widgetContainer?.parent as? LinearLayout
-            if (parent != null) return parent
-        }
-
-        return null
-    }
-
-    private fun buildArcRow(container: LinearLayout, widgetTags: List<String>) {
-        container.orientation = LinearLayout.HORIZONTAL
-        widgetTags.forEachIndexed { index, tag ->
-            container.addView(newArcSlot(tag, index, widgetTags.lastIndex))
-        }
-    }
-
-    private fun buildArcColumn(container: LinearLayout, widgetTags: List<String>) {
-        container.orientation = LinearLayout.VERTICAL
-        widgetTags.forEachIndexed { index, tag ->
-            container.addView(newArcSlot(tag, index, widgetTags.lastIndex, vertical = true))
-        }
-    }
-
-    private fun buildArcGrid(container: LinearLayout, widgetTags: List<String>) {
-        container.orientation = LinearLayout.VERTICAL
-        widgetTags.chunked(2).forEachIndexed { rowIndex, rowTags ->
-            val row = LinearLayout(mContext).apply {
-                orientation = LinearLayout.HORIZONTAL
-                gravity = android.view.Gravity.CENTER
-                layoutParams = LinearLayout.LayoutParams(
-                    LinearLayout.LayoutParams.WRAP_CONTENT,
-                    LinearLayout.LayoutParams.WRAP_CONTENT
-                )
-            }
-
-            rowTags.forEachIndexed { index, tag ->
-                row.addView(newArcSlot(tag, index, rowTags.lastIndex, vertical = false))
-            }
-
-            val rowParams = row.layoutParams as LinearLayout.LayoutParams
-            rowParams.topMargin = if (rowIndex == 0) 0 else dp(12)
-            row.layoutParams = rowParams
-            container.addView(row)
-        }
-    }
-
-    private fun newArcSlot(
-        parentTag: String,
-        index: Int,
-        lastIndex: Int,
-        vertical: Boolean = false
-    ): LinearLayout {
-        val margin = dp(12)
-
-        return LinearLayout(mContext).apply {
-            tag = "text1|$parentTag"
-            layoutParams = LinearLayout.LayoutParams(dp(60), dp(60)).apply {
-                if (vertical) {
-                    topMargin = if (index == 0) 0 else margin
-                } else {
-                    marginStart = if (index == 0) 0 else margin
-                    marginEnd = if (index == lastIndex) 0 else margin
-                }
-            }
-            alpha = 0.9f
-            gravity = android.view.Gravity.CENTER
-            addArcProgressView(parentTag)
-        }
-    }
-
-    private fun String.toArcProgressTag(): String? {
-        return when (this) {
-            "battery" -> "battery_progress_arc"
-            "memory" -> "ram_usage_info"
-            "temperature" -> "temperature_progress"
-            "volume" -> "volume_progress"
-            "cpu" -> "cpu_usage_info"
-            else -> null
-        }
-    }
-
-    private fun dp(value: Int): Int {
-        return (value * mContext.resources.displayMetrics.density).toInt()
-    }
-
     private fun View.addArcProgressView(parentTag: String) {
         val container = findViewContainingTag(parentTag) as LinearLayout?
         container?.setBackgroundResource(0)
@@ -1312,14 +952,6 @@ class LockscreenClock(context: Context) : ModPack(context) {
                         setProgressType(ArcProgressImageView.ProgressType.BATTERY)
                     }
                 }
-                mBatteryLevelArcProgress?.setBatteryDisplayMode(
-                    if (arcConstructorEnabled && arcBatteryMode == "1") {
-                        ArcProgressImageView.BatteryDisplayMode.PERCENT
-                    } else {
-                        ArcProgressImageView.BatteryDisplayMode.CURRENT
-                    }
-                )
-                mBatteryLevelArcProgress?.refreshProgress()
                 container?.reAddView(mBatteryLevelArcProgress)
             }
 

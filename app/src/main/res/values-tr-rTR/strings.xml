@@ -974,6 +974,18 @@
     <string name="ls_wallpaper_blur_title">Duvar Kağıdı Bulanıklığı</string>
     <string name="ls_wallpaper_blur_desc">Kilit ekranına bulanıklık efekti uygula</string>
     <string name="ls_wallpaper_blur_radius_title">Duvar Kağıdı Bulanıklık Yoğunluğu</string>
+    <string name="activity_title_lockscreen_visualizer">Music Visualizer</string>
+    <string name="activity_desc_lockscreen_visualizer">Show music visualizer on lock screen</string>
+    <string name="lockscreen_visualizer_color_mode_title">Color Mode</string>
+    <string name="lockscreen_visualizer_static_color_title">Color</string>
+    <string name="lockscreen_visualizer_gradient_start_title">Start Color</string>
+    <string name="lockscreen_visualizer_gradient_end_title">End Color</string>
+    <string name="lockscreen_visualizer_lava_speed_title">Flow speed</string>
+    <string name="lockscreen_visualizer_sensitivity_title">Sensitivity</string>
+    <string name="lockscreen_visualizer_height_title">Visualizer height</string>
+    <string name="lockscreen_visualizer_bar_thickness_title">Bar thickness</string>
+    <string name="lockscreen_visualizer_smoothness_title">Smoothness</string>
+    <string name="lockscreen_visualizer_fps_title">Visualizer FPS</string>
     <!-- Changelog -->
     <string name="activity_title_changelog">Sürüm Notları (Changelog)</string>
     <string name="no_internet_connection">Sunucuya bağlanılamadı!\nİnternet bağlantınızda bir sorun olabilir veya sunucu şu anda kapalı olabilir. Lütfen daha sonra tekrar deneyin.</string>
@@ -1470,89 +1482,4 @@
     <!-- Search -->
     <string name="search_settings_hint">Search settings…</string>
     <string name="search_no_results">No results found</string>
-
-    <!-- Lockscreen Visualizer -->
-    <string name="lockscreen_visualizer_title">Görselleştirici</string>
-    <string name="lockscreen_visualizer_desc">Kilit ekranında müzik görselleştiricisini göster</string>
-    <string name="lockscreen_visualizer_color_mode_title">Renk stili</string>
-    <string name="lockscreen_visualizer_static_color_title">Renk</string>
-    <string name="lockscreen_visualizer_gradient_start_title">Renk 1</string>
-    <string name="lockscreen_visualizer_gradient_end_title">Renk 2</string>
-    <string name="lockscreen_visualizer_lava_speed_title">Lava hızı</string>
-    <string name="lockscreen_visualizer_sensitivity_title">Hassasiyet</string>
-    <string name="lockscreen_visualizer_height_title">Görselleştirici yüksekliği</string>
-    <string name="lockscreen_visualizer_bar_thickness_title">Çubuk kalınlığı</string>
-    <string name="lockscreen_visualizer_smoothness_title">Yumuşaklık</string>
-    <string name="lockscreen_visualizer_fps_title">Görselleştirici FPS</string>
-
-
-    <string name="lockscreen_clock_61_constructor_title">Clock 61 constructor</string>
-    <string name="lockscreen_clock_61_show_time_overlay_title">Show time on image</string>
-    <string name="lockscreen_clock_61_show_time_overlay_desc">Overlay the current time directly on top of the animated image</string>
-    <string name="lockscreen_clock_61_media_width_title">Image width</string>
-    <string name="lockscreen_clock_61_media_height_title">Image height</string>
-    <string name="lockscreen_clock_61_media_top_margin_title">Image top margin</string>
-    <string name="lockscreen_clock_61_image_opacity_title">Image opacity</string>
-    <string name="lockscreen_clock_61_date_x_offset_title">Date horizontal offset</string>
-    <string name="lockscreen_clock_61_date_y_offset_title">Date vertical offset</string>
-    <string name="lockscreen_clock_61_time_x_offset_title">Time horizontal offset</string>
-    <string name="lockscreen_clock_61_time_y_offset_title">Time vertical offset</string>
-
-
-    <string name="lockscreen_clock_arc_battery_current">Current mA</string>
-    <string name="lockscreen_clock_arc_battery_percent">Percentage</string>
-    <string name="lockscreen_clock_arc_layout_original">Original</string>
-    <string name="lockscreen_clock_arc_layout_row">One line</string>
-    <string name="lockscreen_clock_arc_layout_grid">2 x 2 grid</string>
-    <string name="lockscreen_clock_arc_layout_column">Column</string>
-    <string name="lockscreen_clock_arc_layout_hidden">Hidden</string>
-    <string name="lockscreen_clock_arc_widget_none">None</string>
-    <string name="lockscreen_clock_arc_widget_battery">Battery</string>
-    <string name="lockscreen_clock_arc_widget_memory">RAM usage</string>
-    <string name="lockscreen_clock_arc_widget_temperature">Temperature</string>
-    <string name="lockscreen_clock_arc_widget_volume">Volume</string>
-    <string name="lockscreen_clock_arc_widget_cpu">CPU usage</string>
-
-    <string name="lockscreen_clock_61_image_shape_title">Image shape</string>
-    <string name="lockscreen_clock_61_image_corner_radius_title">Corner radius</string>
-    <string name="lockscreen_clock_61_image_border_width_title">Border width</string>
-    <string name="lockscreen_clock_61_image_scale_type_title">Image scale type</string>
-    <string name="lockscreen_clock_61_image_x_offset_title">Image horizontal offset</string>
-    <string name="lockscreen_clock_61_image_y_offset_title">Image vertical offset</string>
-    <string name="lockscreen_clock_61_time_position_title">Time position</string>
-    <string name="lockscreen_clock_61_date_position_title">Date position</string>
-    <string name="lockscreen_clock_61_image_shape_rectangle">Rectangle</string>
-    <string name="lockscreen_clock_61_image_shape_rounded_rectangle">Rounded rectangle</string>
-    <string name="lockscreen_clock_61_image_shape_circle">Circle</string>
-    <string name="lockscreen_clock_61_image_shape_oval_horizontal">Horizontal oval</string>
-    <string name="lockscreen_clock_61_image_shape_oval_vertical">Vertical oval</string>
-    <string name="lockscreen_clock_61_position_center">Center</string>
-    <string name="lockscreen_clock_61_position_top">Top</string>
-    <string name="lockscreen_clock_61_position_bottom">Bottom</string>
-    <string name="lockscreen_clock_61_position_left">Left</string>
-    <string name="lockscreen_clock_61_position_right">Right</string>
-    <string name="lockscreen_clock_61_position_top_left">Top left</string>
-    <string name="lockscreen_clock_61_position_top_right">Top right</string>
-    <string name="lockscreen_clock_61_position_bottom_left">Bottom left</string>
-    <string name="lockscreen_clock_61_position_bottom_right">Bottom right</string>
-    <string name="lockscreen_clock_61_position_above_image">Above image</string>
-    <string name="lockscreen_clock_61_position_below_image">Below image</string>
-    <string name="lockscreen_clock_61_position_on_image_top">On image top</string>
-    <string name="lockscreen_clock_61_position_on_image_bottom">On image bottom</string>
-    <string name="lockscreen_clock_61_position_hidden">Hidden</string>
-    <string name="lockscreen_clock_61_scale_center_crop">Center crop</string>
-    <string name="lockscreen_clock_61_scale_fit_center">Fit center</string>
-    <string name="lockscreen_clock_61_scale_center_inside">Center inside</string>
-    <string name="lockscreen_clock_61_scale_fit_xy">Fit XY</string>
-
-
-    <string name="lockscreen_clock_constructor_title">Constructor</string>
-    <string name="lockscreen_clock_constructor_enable_title">Use arc widget constructor</string>
-    <string name="lockscreen_clock_constructor_enable_desc">Customize the circular widget block without changing the selected clock style.</string>
-    <string name="lockscreen_clock_arc_layout_title">Widget layout</string>
-    <string name="lockscreen_clock_arc_slot_1_title">Widget 1</string>
-    <string name="lockscreen_clock_arc_slot_2_title">Widget 2</string>
-    <string name="lockscreen_clock_arc_slot_3_title">Widget 3</string>
-    <string name="lockscreen_clock_arc_slot_4_title">Widget 4</string>
-    <string name="lockscreen_clock_arc_battery_mode_title">Battery display mode</string>
 </resources>

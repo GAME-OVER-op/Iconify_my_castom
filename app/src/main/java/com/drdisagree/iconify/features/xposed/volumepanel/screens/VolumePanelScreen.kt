@@ -26,6 +26,12 @@ val volumePanelPreferences = preferenceScreen {
             title = stringRes(R.string.safety_warning_title),
             summary = { stringRes(R.string.safety_warning_desc) },
         )
+
+        switch(
+            key = XposedKey.VOLUME_PANEL_APP_VOLUME,
+            title = stringRes(R.string.app_volume_button_title),
+            summary = { stringRes(R.string.app_volume_button_desc) },
+        )
     }
 }
 
@@ -35,7 +41,9 @@ fun VolumePanelScreen(
 ) {
     PreferenceListener { event ->
         when (event.key) {
-            XposedKey.VOLUME_PANEL_PERCENTAGE.name -> {
+            XposedKey.VOLUME_PANEL_PERCENTAGE.name,
+            XposedKey.VOLUME_PANEL_SAFETY_WARNING.name,
+            XposedKey.VOLUME_PANEL_APP_VOLUME.name -> {
                 systemActionViewModel?.shouldRestartSystemUI()
             }
         }

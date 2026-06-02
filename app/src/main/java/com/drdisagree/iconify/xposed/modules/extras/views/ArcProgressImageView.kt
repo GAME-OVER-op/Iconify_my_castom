@@ -27,7 +27,6 @@ import android.graphics.Typeface
 import android.media.AudioManager
 import android.os.BatteryManager
 import android.os.Build
-import android.os.Looper
 import android.widget.ImageView
 import androidx.core.content.res.ResourcesCompat
 import com.drdisagree.iconify.R
@@ -60,12 +59,13 @@ class ArcProgressImageView(context: Context) : ImageView(context) {
     private var typeface: Typeface? = null
     private var mProgressColor = Color.WHITE
     private var mTextColor = Color.WHITE
-    private var batteryDisplayMode = BatteryDisplayMode.CURRENT
 
     private val batteryReceiver: BroadcastReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent) {
             if (Intent.ACTION_BATTERY_CHANGED == intent.action) {
-                updateBatteryValues(intent)
+                batteryLevel = intent.getIntExtra(BatteryManager.EXTRA_LEVEL, -1)
+                batteryLevel = max(0.0, min(batteryLevel.toDouble(), 100.0)).toInt()
+                batteryTemperature = intent.getIntExtra(BatteryManager.EXTRA_TEMPERATURE, 0) / 10
                 updateProgress()
             }
         }
@@ -88,11 +88,6 @@ class ArcProgressImageView(context: Context) : ImageView(context) {
         UNKNOWN(-1)
     }
 
-    enum class BatteryDisplayMode {
-        CURRENT,
-        PERCENT
-    }
-
     init {
         mContext = context
         progressType = ProgressType.UNKNOWN
@@ -102,18 +97,6 @@ class ArcProgressImageView(context: Context) : ImageView(context) {
 
     fun setProgressType(progressType: ProgressType) {
         this.progressType = progressType
-        updateProgress()
-    }
-
-    fun setBatteryDisplayMode(mode: BatteryDisplayMode) {
-        batteryDisplayMode = mode
-        updateProgress()
-    }
-
-    fun refreshProgress() {
-        if (progressType == ProgressType.BATTERY || progressType == ProgressType.TEMPERATURE) {
-            readBatterySnapshot()
-        }
         updateProgress()
     }
 
@@ -139,8 +122,6 @@ class ArcProgressImageView(context: Context) : ImageView(context) {
 
         when (progressType) {
             ProgressType.BATTERY, ProgressType.TEMPERATURE -> {
-                readBatterySnapshot()
-
                 if (!batteryReceiverRegistered) {
                     IntentFilter(Intent.ACTION_BATTERY_CHANGED).also { filter ->
                         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -231,13 +212,7 @@ class ArcProgressImageView(context: Context) : ImageView(context) {
         }
 
         val newProgressText = when (progressType) {
-            ProgressType.BATTERY -> when (batteryDisplayMode) {
-                BatteryDisplayMode.CURRENT -> batteryCurrentText
-                BatteryDisplayMode.PERCENT -> {
-                    if (newProgressPercent == -1) "..." else "$newProgressPercent%"
-                }
-            }
-
+            ProgressType.BATTERY -> batteryCurrentText
             ProgressType.TEMPERATURE -> {
                 if (newProgressPercent != -1) {
                     "$newProgressPercent\u2103" // degree
@@ -267,7 +242,7 @@ class ArcProgressImageView(context: Context) : ImageView(context) {
 
         val widgetBitmap = generateBitmap(
             mContext,
-            if (progressPercent == -1) 0 else progressPercent.coerceIn(0, 100),
+            if (progressPercent == -1) 0 else progressPercent,
             progressText,
             if (progressType == ProgressType.BATTERY) 30 else 40,
             ResourcesCompat.getDrawable(modRes, progressType.iconRes, mContext.theme),
@@ -276,43 +251,7 @@ class ArcProgressImageView(context: Context) : ImageView(context) {
             mProgressColor,
             mTextColor
         )
-
-        if (Looper.myLooper() == Looper.getMainLooper()) {
-            setImageBitmap(widgetBitmap)
-        } else {
-            post { setImageBitmap(widgetBitmap) }
-        }
-    }
-
-    private fun readBatterySnapshot() {
-        val batteryIntent = runCatching {
-            val filter = IntentFilter(Intent.ACTION_BATTERY_CHANGED)
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                mContext.registerReceiver(null, filter, Context.RECEIVER_EXPORTED)
-            } else {
-                mContext.registerReceiver(null, filter)
-            }
-        }.getOrNull()
-
-        if (batteryIntent != null) {
-            updateBatteryValues(batteryIntent)
-        } else {
-            val batteryManager = mContext.getSystemService(Context.BATTERY_SERVICE) as BatteryManager
-            val capacity = batteryManager.getIntProperty(BatteryManager.BATTERY_PROPERTY_CAPACITY)
-            batteryLevel = capacity.coerceIn(0, 100)
-        }
-    }
-
-    private fun updateBatteryValues(intent: Intent) {
-        val level = intent.getIntExtra(BatteryManager.EXTRA_LEVEL, -1)
-        val scale = intent.getIntExtra(BatteryManager.EXTRA_SCALE, 100).takeIf { it > 0 } ?: 100
-
-        batteryLevel = if (level >= 0) {
-            ((level * 100f) / scale).toInt().coerceIn(0, 100)
-        } else {
-            -1
-        }
-        batteryTemperature = intent.getIntExtra(BatteryManager.EXTRA_TEMPERATURE, 0) / 10
+        setImageBitmap(widgetBitmap)
     }
 
     private val memoryLevel: Int

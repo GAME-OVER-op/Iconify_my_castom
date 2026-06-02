@@ -153,6 +153,13 @@ This project exists thanks to the following contributors:
                 </a>
             </td>
             <td align="center">
+                <a href="https://github.com/GAME-OVER-op">
+                    <img src="https://avatars.githubusercontent.com/u/152814129?v=4" width="100;" alt="GAME-OVER-op"/>
+                    <br />
+                    <sub><b>GAME-OVER-op</b></sub>
+                </a>
+            </td>
+            <td align="center">
                 <a href="https://github.com/HiFiiDev">
                     <img src="https://avatars.githubusercontent.com/u/46557883?v=4" width="100;" alt="HiFiiDev"/>
                     <br />
@@ -173,6 +180,8 @@ This project exists thanks to the following contributors:
                     <sub><b>lixkote</b></sub>
                 </a>
             </td>
+		</tr>
+		<tr>
             <td align="center">
                 <a href="https://github.com/flumpyflarb">
                     <img src="https://avatars.githubusercontent.com/u/36867039?v=4" width="100;" alt="flumpyflarb"/>
@@ -180,8 +189,6 @@ This project exists thanks to the following contributors:
                     <sub><b>flumpyflarb</b></sub>
                 </a>
             </td>
-		</tr>
-		<tr>
             <td align="center">
                 <a href="https://github.com/backslashxx">
                     <img src="https://avatars.githubusercontent.com/u/118538522?v=4" width="100;" alt="backslashxx"/>

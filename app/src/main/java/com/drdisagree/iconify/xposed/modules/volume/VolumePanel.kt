@@ -2,6 +2,7 @@ package com.drdisagree.iconify.xposed.modules.volume
 
 import android.annotation.SuppressLint
 import android.content.Context
+import android.media.AudioManager
 import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
@@ -14,6 +15,8 @@ import com.drdisagree.iconify.xposed.modules.extras.utils.misc.ViewHelper.toPx
 import com.drdisagree.iconify.xposed.modules.extras.utils.toolkit.ResourceHookManager
 import com.drdisagree.iconify.xposed.modules.extras.utils.toolkit.XposedHook.Companion.findClass
 import com.drdisagree.iconify.xposed.modules.extras.utils.toolkit.callMethod
+import com.drdisagree.iconify.xposed.modules.extras.utils.toolkit.setFieldSilently
+import com.drdisagree.iconify.xposed.modules.extras.utils.toolkit.callMethodSilently
 import com.drdisagree.iconify.xposed.modules.extras.utils.toolkit.getField
 import com.drdisagree.iconify.xposed.modules.extras.utils.toolkit.getFieldSilently
 import com.drdisagree.iconify.xposed.modules.extras.utils.toolkit.hookConstructor
@@ -29,17 +32,20 @@ class VolumePanel(context: Context) : ModPack(context) {
 
     private var showPercentage = false
     private var showWarning = true
+    private var showAppVolume = false
 
     override fun updatePrefs(vararg key: String) {
         Xprefs.apply {
             showPercentage = getBoolean(XposedKey.VOLUME_PANEL_PERCENTAGE)
             showWarning = getBoolean(XposedKey.VOLUME_PANEL_SAFETY_WARNING)
+            showAppVolume = getBoolean(XposedKey.VOLUME_PANEL_APP_VOLUME)
         }
     }
 
     override fun handleLoadPackage(loadPackageParam: LoadPackageParam) {
         showVolumePercentage()
         showSafetyWarning()
+        showAppVolumeButton()
     }
 
     private fun showVolumePercentage() {
@@ -208,6 +214,49 @@ class VolumePanel(context: Context) : ModPack(context) {
                     }
             }
         }
+    }
+
+
+    private fun showAppVolumeButton() {
+        val volumeDialogImplClass = findClass(
+            "$SYSTEMUI_PACKAGE.volume.VolumeDialogImpl",
+            suppressError = true
+        ) ?: return
+
+        volumeDialogImplClass
+            .hookMethod("shouldShowAppVolume")
+            .suppressError()
+            .runAfter { param ->
+                if (!showAppVolume) return@runAfter
+
+                val activePackageName = findActiveAppVolumePackageName() ?: return@runAfter
+
+                param.thisObject.setFieldSilently(
+                    "mAppVolumeActivePackageName",
+                    activePackageName
+                )
+                param.result = true
+            }
+    }
+
+    private fun findActiveAppVolumePackageName(): String? {
+        val audioManager =
+            mContext.getSystemService(Context.AUDIO_SERVICE) as? AudioManager ?: return null
+
+        val appVolumes = audioManager.callMethodSilently("listAppVolumes") as? Iterable<*>
+            ?: return null
+
+        appVolumes.forEach { appVolume ->
+            val isActive = appVolume.callMethodSilently("isActive") as? Boolean ?: false
+            if (!isActive) return@forEach
+
+            val packageName = appVolume.callMethodSilently("getPackageName") as? String
+            if (!packageName.isNullOrBlank()) {
+                return packageName
+            }
+        }
+
+        return null
     }
 
     private fun createVolumeTextView(): TextView {
