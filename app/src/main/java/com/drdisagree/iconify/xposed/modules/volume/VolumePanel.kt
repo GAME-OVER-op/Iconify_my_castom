@@ -13,6 +13,7 @@ import android.media.AudioPlaybackConfiguration
 import android.os.Handler
 import android.os.Looper
 import android.view.Gravity
+import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
 import android.view.WindowManager
@@ -1069,13 +1070,29 @@ class VolumePanel(context: Context) : ModPack(context) {
             ViewGroup.LayoutParams.WRAP_CONTENT
         ))
 
-        row.addView(SeekBar(mContext).apply {
+        val seekBar = SeekBar(mContext).apply {
             max = 100
             progress = (source.volume * 100f).roundToInt().coerceIn(0, 100)
             isEnabled = true
-            minHeight = mContext.toPx(48)
-            setPadding(0, mContext.toPx(10), 0, mContext.toPx(8))
+            minHeight = mContext.toPx(56)
+            setPadding(0, mContext.toPx(8), 0, mContext.toPx(8))
             splitTrack = false
+
+            setOnTouchListener { view, event ->
+                when (event.actionMasked) {
+                    MotionEvent.ACTION_DOWN,
+                    MotionEvent.ACTION_MOVE -> {
+                        view.parent?.requestDisallowInterceptTouchEvent(true)
+                    }
+
+                    MotionEvent.ACTION_UP,
+                    MotionEvent.ACTION_CANCEL -> {
+                        view.parent?.requestDisallowInterceptTouchEvent(false)
+                    }
+                }
+
+                false
+            }
 
             setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
                 override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
@@ -1094,9 +1111,35 @@ class VolumePanel(context: Context) : ModPack(context) {
                     seekBar?.parent?.requestDisallowInterceptTouchEvent(false)
                 }
             })
+        }
+
+        row.addView(FrameLayout(mContext).apply {
+            isClickable = true
+            isFocusable = true
+            setPadding(0, mContext.toPx(4), 0, mContext.toPx(2))
+            setOnTouchListener { _, event ->
+                when (event.actionMasked) {
+                    MotionEvent.ACTION_DOWN,
+                    MotionEvent.ACTION_MOVE -> {
+                        parent?.requestDisallowInterceptTouchEvent(true)
+                    }
+
+                    MotionEvent.ACTION_UP,
+                    MotionEvent.ACTION_CANCEL -> {
+                        parent?.requestDisallowInterceptTouchEvent(false)
+                    }
+                }
+
+                false
+            }
+            addView(seekBar, FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                Gravity.CENTER
+            ))
         }, LinearLayout.LayoutParams(
             LinearLayout.LayoutParams.MATCH_PARENT,
-            mContext.toPx(58)
+            mContext.toPx(72)
         ))
 
         return row.apply {
