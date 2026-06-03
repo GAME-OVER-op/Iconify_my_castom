@@ -12,12 +12,12 @@ import android.os.Handler
 import android.media.AudioManager
 import android.media.AudioPlaybackConfiguration
 import android.graphics.drawable.GradientDrawable
-import android.graphics.drawable.ColorDrawable
 import android.graphics.Color
-import android.graphics.Rect
+import android.graphics.PixelFormat
 import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
+import android.view.WindowManager
 import android.widget.LinearLayout
 import android.widget.FrameLayout
 import android.widget.TextView
@@ -37,7 +37,6 @@ import com.drdisagree.iconify.xposed.modules.extras.utils.toolkit.setField
 import com.drdisagree.iconify.xposed.utils.XPrefs.Xprefs
 import de.robv.android.xposed.callbacks.XC_LoadPackage.LoadPackageParam
 import java.util.WeakHashMap
-import kotlin.math.abs
 import kotlin.math.ceil
 import kotlin.math.roundToInt
 
@@ -51,8 +50,7 @@ class VolumePanel(context: Context) : ModPack(context) {
     private val mainHandler = Handler(Looper.getMainLooper())
     private val appVolumeSources = linkedMapOf<String, AppVolumeSource>()
     private val appVolumeButtons = WeakHashMap<View, Unit>()
-    private var appVolumeSheetDialog: Dialog? = null
-    private var currentVolumeDialog: Dialog? = null
+    private var appVolumeSheetView: View? = null
     private var currentVolumeDialogObject: Any? = null
     private var playbackCallbackRegistered = false
 
@@ -70,8 +68,7 @@ class VolumePanel(context: Context) : ModPack(context) {
                 updatePerAppVolumeButtons()
             }
         } else {
-            appVolumeSheetDialog?.dismiss()
-            appVolumeSheetDialog = null
+            dismissPerAppVolumeBottomSheet()
             appVolumeSources.clear()
             updatePerAppVolumeButtons()
         }
@@ -330,12 +327,15 @@ class VolumePanel(context: Context) : ModPack(context) {
                 registerPlaybackCallback()
                 refreshPlaybackSources()
 
-                currentVolumeDialog = param.args.firstOrNull { it is Dialog } as? Dialog
-                currentVolumeDialogObject = currentVolumeDialog
+                val dialog = param.args.firstOrNull {
+                    it?.javaClass?.name?.contains("Dialog") == true
+                }
+                currentVolumeDialogObject = dialog
 
-                val root = currentVolumeDialog
-                    ?.window
-                    ?.decorView as? ViewGroup ?: return@runAfter
+                val root = dialog
+                    .callMethodSilently("getWindow")
+                    ?.callMethodSilently("getDecorView") as? ViewGroup
+                    ?: return@runAfter
 
                 root.post {
                     attachPerAppVolumeButton(root)
@@ -440,10 +440,7 @@ class VolumePanel(context: Context) : ModPack(context) {
                 mContext.toPx(9),
                 mContext.toPx(9)
             )
-            background = GradientDrawable().apply {
-                shape = GradientDrawable.OVAL
-                setColor(Color.argb(235, 224, 239, 255))
-            }
+            background = null
             setOnClickListener {
                 refreshPlaybackSources()
                 showPerAppVolumeBottomSheet()
@@ -482,7 +479,7 @@ class VolumePanel(context: Context) : ModPack(context) {
             if (!insideVolumePanel) {
                 background = GradientDrawable().apply {
                     cornerRadius = mContext.toPx(26).toFloat()
-                    setColor(Color.argb(238, 14, 18, 24))
+                    setColor(Color.argb(0, 0, 0, 0))
                 }
             }
         }
@@ -735,54 +732,81 @@ class VolumePanel(context: Context) : ModPack(context) {
     }
 
     private fun hideSystemVolumeDialog() {
-        runCatching {
-            currentVolumeDialog?.dismiss()
-        }
-
         currentVolumeDialogObject.callMethodSilently("dismissH")
         currentVolumeDialogObject.callMethodSilently("dismiss")
     }
 
     private fun showPerAppVolumeBottomSheet() {
-        appVolumeSheetDialog?.dismiss()
+        dismissPerAppVolumeBottomSheet()
 
-        val dialog = Dialog(mContext).apply {
-            window?.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
-            setContentView(createPerAppVolumeSheetContent())
-            setOnDismissListener {
-                if (appVolumeSheetDialog === this) {
-                    appVolumeSheetDialog = null
-                }
+        val windowManager =
+            mContext.getSystemService(Context.WINDOW_SERVICE) as? WindowManager ?: return
+
+        val overlay = FrameLayout(mContext).apply {
+            setBackgroundColor(Color.argb(85, 0, 0, 0))
+            setOnClickListener {
+                dismissPerAppVolumeBottomSheet()
             }
         }
 
-        appVolumeSheetDialog = dialog
+        val sheet = createPerAppVolumeSheetContent()
+        sheet.setOnClickListener {
+            // Consume clicks so tapping the sheet does not close the overlay.
+        }
 
-        dialog.show()
+        overlay.addView(
+            sheet,
+            FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.WRAP_CONTENT,
+                Gravity.BOTTOM
+            ).apply {
+                leftMargin = mContext.toPx(12)
+                rightMargin = mContext.toPx(12)
+                bottomMargin = mContext.toPx(12)
+            }
+        )
 
-        dialog.window?.apply {
-            setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
-            setGravity(Gravity.BOTTOM)
-            setDimAmount(0.25f)
-            setLayout(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                ViewGroup.LayoutParams.WRAP_CONTENT
-            )
+        val params = WindowManager.LayoutParams(
+            WindowManager.LayoutParams.MATCH_PARENT,
+            WindowManager.LayoutParams.MATCH_PARENT,
+            WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
+            WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
+            PixelFormat.TRANSLUCENT
+        ).apply {
+            gravity = Gravity.BOTTOM
+            setTitle("Iconify per-app volume")
+        }
+
+        runCatching {
+            windowManager.addView(overlay, params)
+            appVolumeSheetView = overlay
         }
     }
 
-    private fun refreshPerAppVolumeBottomSheet() {
-        val dialog = appVolumeSheetDialog ?: return
-        if (!dialog.isShowing) return
+    private fun dismissPerAppVolumeBottomSheet() {
+        val view = appVolumeSheetView ?: return
+        val windowManager =
+            mContext.getSystemService(Context.WINDOW_SERVICE) as? WindowManager ?: return
 
-        dialog.setContentView(createPerAppVolumeSheetContent())
-        dialog.window?.apply {
-            setGravity(Gravity.BOTTOM)
-            setLayout(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                ViewGroup.LayoutParams.WRAP_CONTENT
-            )
+        runCatching {
+            windowManager.removeView(view)
         }
+
+        appVolumeSheetView = null
+    }
+
+    private fun refreshPerAppVolumeBottomSheet() {
+        val oldView = appVolumeSheetView ?: return
+        val windowManager =
+            mContext.getSystemService(Context.WINDOW_SERVICE) as? WindowManager ?: return
+
+        runCatching {
+            windowManager.removeView(oldView)
+        }
+
+        appVolumeSheetView = null
+        showPerAppVolumeBottomSheet()
     }
 
     private fun createPerAppVolumeSheetContent(): View {
