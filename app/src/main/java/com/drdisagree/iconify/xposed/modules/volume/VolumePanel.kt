@@ -536,6 +536,59 @@ class VolumePanel(context: Context) : ModPack(context) {
         return findCompactVolumePanelView(root) ?: root
     }
 
+
+    private fun findCompactVolumePanelView(root: ViewGroup): ViewGroup? {
+        val minWidth = mContext.toPx(48)
+        val maxWidth = mContext.toPx(150)
+        val minHeight = mContext.toPx(160)
+
+        var bestCandidate: ViewGroup? = null
+        var bestScore = -1
+
+        fun viewSize(view: View): Pair<Int, Int> {
+            val width = if (view.width > 0) {
+                view.width
+            } else {
+                view.layoutParams?.width ?: 0
+            }
+
+            val height = if (view.height > 0) {
+                view.height
+            } else {
+                view.layoutParams?.height ?: 0
+            }
+
+            return width to height
+        }
+
+        fun visit(view: View) {
+            val group = view as? ViewGroup ?: return
+            val (width, height) = viewSize(group)
+
+            val looksLikeCompactVolumePanel =
+                width in minWidth..maxWidth &&
+                        height >= minHeight &&
+                        height > width * 2 &&
+                        group.childCount >= 2
+
+            if (looksLikeCompactVolumePanel) {
+                val score = height * 10 - width
+                if (score > bestScore) {
+                    bestScore = score
+                    bestCandidate = group
+                }
+            }
+
+            for (i in 0 until group.childCount) {
+                visit(group.getChildAt(i))
+            }
+        }
+
+        visit(root)
+
+        return bestCandidate
+    }
+
     private fun findViewGroupByResourceName(root: ViewGroup, name: String): ViewGroup? {
         val id = mContext.resources.getIdentifier(name, "id", mContext.packageName)
         if (id == 0) return null
