@@ -59,7 +59,13 @@ class VolumePanel(context: Context) : ModPack(context) {
             showAppVolume = getBoolean(XposedKey.VOLUME_PANEL_APP_VOLUME)
         }
 
-        if (!showAppVolume) {
+        if (showAppVolume) {
+            mainHandler.post {
+                registerPlaybackCallback()
+                refreshPlaybackSources()
+                updatePerAppVolumeButtons()
+            }
+        } else {
             appVolumePopup?.dismiss()
             appVolumeSources.clear()
             updatePerAppVolumeButtons()
@@ -265,13 +271,7 @@ class VolumePanel(context: Context) : ModPack(context) {
                 mainHandler
             )
             playbackCallbackRegistered = true
-
-            val currentConfigs =
-                audioManager.callMethodSilently("getActivePlaybackConfigurations") as? List<*>
-            @Suppress("UNCHECKED_CAST")
-            updatePlaybackSources(
-                currentConfigs?.filterIsInstance<AudioPlaybackConfiguration>().orEmpty()
-            )
+            refreshPlaybackSources()
         }
     }
 
@@ -288,6 +288,7 @@ class VolumePanel(context: Context) : ModPack(context) {
                 if (!showAppVolume) return@runAfter
 
                 registerPlaybackCallback()
+                refreshPlaybackSources()
                 attachPerAppVolumeButton(param.args[0])
             }
 
@@ -302,10 +303,33 @@ class VolumePanel(context: Context) : ModPack(context) {
             .runAfter {
                 if (showAppVolume) {
                     registerPlaybackCallback()
+                    refreshPlaybackSources()
+                    attachPerAppVolumeButtonsFromDialog(it.thisObject)
                 }
 
                 updatePerAppVolumeButtons()
             }
+    }
+
+    private fun refreshPlaybackSources() {
+        val audioManager =
+            mContext.getSystemService(Context.AUDIO_SERVICE) as? AudioManager ?: return
+
+        val currentConfigs =
+            audioManager.callMethodSilently("getActivePlaybackConfigurations") as? List<*>
+
+        updatePlaybackSources(
+            currentConfigs?.filterIsInstance<AudioPlaybackConfiguration>().orEmpty()
+        )
+    }
+
+    private fun attachPerAppVolumeButtonsFromDialog(volumeDialog: Any?) {
+        val rows = volumeDialog
+            .getFieldSilently("mRows") as? Iterable<*> ?: return
+
+        rows.forEach { row ->
+            attachPerAppVolumeButton(row)
+        }
     }
 
     private fun attachPerAppVolumeButton(row: Any?) {
@@ -393,7 +417,7 @@ class VolumePanel(context: Context) : ModPack(context) {
             val packageName = resolvePackageName(uid) ?: return@forEach
             if (packageName == mContext.packageName || packageName == "android") return@forEach
 
-            val proxy = config.callMethodSilently("getPlayerProxy") ?: return@forEach
+            val proxy = config.callMethodSilently("getPlayerProxy")
             val volume = previousVolumes[packageName] ?: readStoredAppVolume(packageName)
 
             val source = appVolumeSources.getOrPut(packageName) {
@@ -406,7 +430,9 @@ class VolumePanel(context: Context) : ModPack(context) {
                 )
             }
 
-            source.proxies.add(proxy)
+            if (proxy != null) {
+                source.proxies.add(proxy)
+            }
             source.volume = volume
         }
 
@@ -481,8 +507,13 @@ class VolumePanel(context: Context) : ModPack(context) {
     }
 
     private fun updatePerAppVolumeButtons() {
-        val shouldShow = showAppVolume && appVolumeSources.isNotEmpty()
+        val audioManager =
+            mContext.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
+        val shouldShow = showAppVolume && (appVolumeSources.isNotEmpty() || audioManager?.isMusicActive == true)
         val firstSource = appVolumeSources.values.firstOrNull()
+        val fallbackIcon = runCatching {
+            mContext.getDrawable(android.R.drawable.ic_media_play)
+        }.getOrNull()
 
         appVolumeButtons.keys.toList().forEach { button ->
             if (button.parent == null) {
@@ -493,13 +524,13 @@ class VolumePanel(context: Context) : ModPack(context) {
             button.visibility = if (shouldShow) View.VISIBLE else View.GONE
 
             if (button is ImageButton) {
-                button.setImageDrawable(firstSource?.icon)
+                button.setImageDrawable(firstSource?.icon ?: fallbackIcon)
             }
         }
     }
 
     private fun showPerAppVolumePopup(anchor: View) {
-        if (appVolumeSources.isEmpty()) return
+        refreshPlaybackSources()
 
         appVolumePopup?.dismiss()
 
@@ -528,11 +559,6 @@ class VolumePanel(context: Context) : ModPack(context) {
     private fun refreshPerAppVolumePopup() {
         val popup = appVolumePopup ?: return
         if (!popup.isShowing) return
-
-        if (appVolumeSources.isEmpty()) {
-            popup.dismiss()
-            return
-        }
 
         popup.contentView = createPerAppVolumeContent()
     }
@@ -567,8 +593,18 @@ class VolumePanel(context: Context) : ModPack(context) {
             setPadding(0, mContext.toPx(4), 0, mContext.toPx(12))
         })
 
-        appVolumeSources.values.forEach { source ->
-            container.addView(createPerAppVolumeRow(source))
+        if (appVolumeSources.isEmpty()) {
+            container.addView(TextView(mContext).apply {
+                text = "Активные источники не найдены. Запусти музыку/видео и открой панель громкости ещё раз."
+                textSize = 13f
+                setTextColor(Color.argb(220, 255, 255, 255))
+                gravity = Gravity.CENTER
+                setPadding(0, mContext.toPx(8), 0, mContext.toPx(8))
+            })
+        } else {
+            appVolumeSources.values.forEach { source ->
+                container.addView(createPerAppVolumeRow(source))
+            }
         }
 
         return ScrollView(mContext).apply {
@@ -610,6 +646,7 @@ class VolumePanel(context: Context) : ModPack(context) {
         row.addView(SeekBar(mContext).apply {
             max = 100
             progress = (source.volume * 100f).roundToInt().coerceIn(0, 100)
+            isEnabled = source.proxies.isNotEmpty()
             setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
                 override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
                     percentText.text = "${progress.coerceIn(0, 100)}%"
