@@ -1,5 +1,6 @@
 package com.drdisagree.iconify.xposed.modules.volume
 
+import android.animation.ValueAnimator
 import android.annotation.SuppressLint
 import android.app.Dialog
 import android.content.Context
@@ -15,6 +16,7 @@ import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
 import android.view.WindowManager
+import android.view.animation.DecelerateInterpolator
 import android.widget.FrameLayout
 import android.widget.ImageView
 import android.widget.ScrollView
@@ -785,19 +787,22 @@ class VolumePanel(context: Context) : ModPack(context) {
     }
 
     private fun showFloatingPerAppVolumeSheet() {
-        dismissFloatingPerAppVolumeSheet()
+        dismissFloatingPerAppVolumeSheet(animated = false)
 
         val windowManager =
             mContext.getSystemService(Context.WINDOW_SERVICE) as? WindowManager ?: return
 
         val overlay = FrameLayout(mContext).apply {
-            setBackgroundColor(Color.argb(88, 0, 0, 0))
+            setBackgroundColor(Color.TRANSPARENT)
+            alpha = 1f
+            isClickable = true
             setOnClickListener {
                 dismissFloatingPerAppVolumeSheet()
             }
         }
 
         val sheet = createFloatingPerAppVolumeSheetContent().apply {
+            alpha = 0f
             setOnClickListener {
                 // Consume clicks inside the sheet.
             }
@@ -810,9 +815,9 @@ class VolumePanel(context: Context) : ModPack(context) {
                 FrameLayout.LayoutParams.WRAP_CONTENT,
                 Gravity.BOTTOM
             ).apply {
-                leftMargin = mContext.toPx(12)
-                rightMargin = mContext.toPx(12)
-                bottomMargin = mContext.toPx(12)
+                leftMargin = mContext.toPx(10)
+                rightMargin = mContext.toPx(10)
+                bottomMargin = mContext.toPx(10)
             }
         )
 
@@ -831,48 +836,146 @@ class VolumePanel(context: Context) : ModPack(context) {
         runCatching {
             windowManager.addView(overlay, params)
             appVolumeSheetView = overlay
+
+            sheet.post {
+                sheet.translationY = sheet.height.toFloat().coerceAtLeast(mContext.toPx(180).toFloat())
+                animateFloatingSheetIn(overlay, sheet)
+            }
         }
     }
 
-    private fun dismissFloatingPerAppVolumeSheet() {
-        val view = appVolumeSheetView ?: return
+    private fun dismissFloatingPerAppVolumeSheet(animated: Boolean = true) {
+        val overlay = appVolumeSheetView as? ViewGroup ?: return
         val windowManager =
             mContext.getSystemService(Context.WINDOW_SERVICE) as? WindowManager ?: return
 
-        runCatching {
-            windowManager.removeView(view)
+        fun removeNow() {
+            runCatching {
+                windowManager.removeView(overlay)
+            }
+
+            if (appVolumeSheetView === overlay) {
+                appVolumeSheetView = null
+            }
         }
 
-        appVolumeSheetView = null
+        if (!animated) {
+            removeNow()
+            return
+        }
+
+        val sheet = overlay.getChildAt(0)
+        if (sheet == null) {
+            removeNow()
+            return
+        }
+
+        animateFloatingSheetOut(overlay, sheet) {
+            removeNow()
+        }
     }
 
     private fun refreshFloatingPerAppVolumeSheet() {
-        if (appVolumeSheetView == null) return
+        val overlay = appVolumeSheetView as? ViewGroup ?: return
+        if (overlay.childCount == 0) return
 
-        dismissFloatingPerAppVolumeSheet()
-        showFloatingPerAppVolumeSheet()
+        val oldSheet = overlay.getChildAt(0)
+        val newSheet = createFloatingPerAppVolumeSheetContent().apply {
+            alpha = oldSheet.alpha
+            translationY = oldSheet.translationY
+            setOnClickListener {
+                // Consume clicks inside the sheet.
+            }
+        }
+
+        overlay.removeAllViews()
+        overlay.addView(
+            newSheet,
+            FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.WRAP_CONTENT,
+                Gravity.BOTTOM
+            ).apply {
+                leftMargin = mContext.toPx(10)
+                rightMargin = mContext.toPx(10)
+                bottomMargin = mContext.toPx(10)
+            }
+        )
+    }
+
+    private fun animateFloatingSheetIn(overlay: View, sheet: View) {
+        ValueAnimator.ofInt(0, SHEET_DIM_ALPHA).apply {
+            duration = SHEET_ANIMATION_MS
+            interpolator = DecelerateInterpolator()
+            addUpdateListener { animator ->
+                overlay.setBackgroundColor(
+                    Color.argb(animator.animatedValue as Int, 0, 0, 0)
+                )
+            }
+            start()
+        }
+
+        sheet.animate()
+            .alpha(1f)
+            .translationY(0f)
+            .setDuration(SHEET_ANIMATION_MS)
+            .setInterpolator(DecelerateInterpolator())
+            .start()
+    }
+
+    private fun animateFloatingSheetOut(overlay: View, sheet: View, endAction: () -> Unit) {
+        ValueAnimator.ofInt(SHEET_DIM_ALPHA, 0).apply {
+            duration = SHEET_ANIMATION_MS / 2
+            interpolator = DecelerateInterpolator()
+            addUpdateListener { animator ->
+                overlay.setBackgroundColor(
+                    Color.argb(animator.animatedValue as Int, 0, 0, 0)
+                )
+            }
+            start()
+        }
+
+        sheet.animate()
+            .alpha(0f)
+            .translationY(sheet.height.toFloat().coerceAtLeast(mContext.toPx(180).toFloat()))
+            .setDuration(SHEET_ANIMATION_MS / 2)
+            .setInterpolator(DecelerateInterpolator())
+            .withEndAction(endAction)
+            .start()
     }
 
     private fun createFloatingPerAppVolumeSheetContent(): View {
         val container = LinearLayout(mContext).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(
-                mContext.toPx(22),
-                mContext.toPx(18),
-                mContext.toPx(22),
-                mContext.toPx(24)
+                mContext.toPx(20),
+                mContext.toPx(12),
+                mContext.toPx(20),
+                mContext.toPx(22)
             )
             background = GradientDrawable().apply {
-                cornerRadius = mContext.toPx(28).toFloat()
-                setColor(Color.argb(248, 24, 24, 24))
+                cornerRadius = mContext.toPx(30).toFloat()
+                setColor(Color.argb(250, 22, 24, 31))
             }
+            elevation = mContext.toPx(10).toFloat()
         }
+
+        container.addView(View(mContext).apply {
+            background = GradientDrawable().apply {
+                cornerRadius = mContext.toPx(2).toFloat()
+                setColor(Color.argb(120, 255, 255, 255))
+            }
+        }, LinearLayout.LayoutParams(mContext.toPx(42), mContext.toPx(4)).apply {
+            gravity = Gravity.CENTER_HORIZONTAL
+            bottomMargin = mContext.toPx(14)
+        })
 
         container.addView(TextView(mContext).apply {
             text = "Громкость приложений"
             textSize = 20f
             setTextColor(Color.WHITE)
             gravity = Gravity.CENTER
+            setPadding(0, 0, 0, mContext.toPx(2))
         })
 
         container.addView(TextView(mContext).apply {
@@ -882,9 +985,9 @@ class VolumePanel(context: Context) : ModPack(context) {
                 "Активные источники: ${appVolumeSources.size}"
             }
             textSize = 12f
-            setTextColor(Color.argb(190, 255, 255, 255))
+            setTextColor(Color.argb(185, 255, 255, 255))
             gravity = Gravity.CENTER
-            setPadding(0, mContext.toPx(6), 0, mContext.toPx(12))
+            setPadding(0, mContext.toPx(4), 0, mContext.toPx(14))
         })
 
         if (appVolumeSources.isEmpty()) {
@@ -902,24 +1005,39 @@ class VolumePanel(context: Context) : ModPack(context) {
         }
 
         return ScrollView(mContext).apply {
+            isFillViewport = false
+            overScrollMode = View.OVER_SCROLL_NEVER
             addView(container)
         }
     }
 
     private fun createPerAppVolumeRow(source: AppVolumeSource): View {
         val row = LinearLayout(mContext).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
-            setPadding(0, mContext.toPx(8), 0, mContext.toPx(8))
+            orientation = LinearLayout.VERTICAL
+            setPadding(
+                mContext.toPx(12),
+                mContext.toPx(10),
+                mContext.toPx(12),
+                mContext.toPx(12)
+            )
+            background = GradientDrawable().apply {
+                cornerRadius = mContext.toPx(20).toFloat()
+                setColor(Color.argb(42, 255, 255, 255))
+            }
         }
 
-        row.addView(ImageView(mContext).apply {
+        val header = LinearLayout(mContext).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+        }
+
+        header.addView(ImageView(mContext).apply {
             setImageDrawable(source.icon)
         }, LinearLayout.LayoutParams(mContext.toPx(34), mContext.toPx(34)).apply {
             rightMargin = mContext.toPx(12)
         })
 
-        row.addView(TextView(mContext).apply {
+        header.addView(TextView(mContext).apply {
             text = source.label
             textSize = 14f
             setTextColor(Color.WHITE)
@@ -928,19 +1046,26 @@ class VolumePanel(context: Context) : ModPack(context) {
 
         val percentText = TextView(mContext).apply {
             text = "${(source.volume * 100f).roundToInt().coerceIn(0, 100)}%"
-            textSize = 12f
-            setTextColor(Color.argb(220, 255, 255, 255))
+            textSize = 13f
+            setTextColor(Color.argb(230, 255, 255, 255))
             gravity = Gravity.END
         }
 
-        row.addView(percentText, LinearLayout.LayoutParams(mContext.toPx(42), ViewGroup.LayoutParams.WRAP_CONTENT).apply {
-            rightMargin = mContext.toPx(8)
-        })
+        header.addView(percentText, LinearLayout.LayoutParams(mContext.toPx(46), ViewGroup.LayoutParams.WRAP_CONTENT))
+
+        row.addView(header, LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT,
+            ViewGroup.LayoutParams.WRAP_CONTENT
+        ))
 
         row.addView(SeekBar(mContext).apply {
             max = 100
             progress = (source.volume * 100f).roundToInt().coerceIn(0, 100)
             isEnabled = true
+            minHeight = mContext.toPx(48)
+            setPadding(0, mContext.toPx(10), 0, mContext.toPx(8))
+            splitTrack = false
+
             setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
                 override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
                     percentText.text = "${progress.coerceIn(0, 100)}%"
@@ -950,12 +1075,28 @@ class VolumePanel(context: Context) : ModPack(context) {
                     }
                 }
 
-                override fun onStartTrackingTouch(seekBar: SeekBar?) = Unit
-                override fun onStopTrackingTouch(seekBar: SeekBar?) = Unit
-            })
-        }, LinearLayout.LayoutParams(mContext.toPx(150), ViewGroup.LayoutParams.WRAP_CONTENT))
+                override fun onStartTrackingTouch(seekBar: SeekBar?) {
+                    seekBar?.parent?.requestDisallowInterceptTouchEvent(true)
+                }
 
-        return row
+                override fun onStopTrackingTouch(seekBar: SeekBar?) {
+                    seekBar?.parent?.requestDisallowInterceptTouchEvent(false)
+                }
+            })
+        }, LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT,
+            mContext.toPx(58)
+        ))
+
+        return row.apply {
+            val params = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+            ).apply {
+                bottomMargin = mContext.toPx(10)
+            }
+            layoutParams = params
+        }
     }
 
     private data class AppVolumeSource(
