@@ -392,29 +392,79 @@ class VolumePanel(context: Context) : ModPack(context) {
     }
 
     private fun attachPerAppVolumeButton(root: ViewGroup) {
-        val target = findPerAppVolumeButtonTarget(root) ?: return
-        val parent = target.parent
+        val targetButton = findSettingsOrBottomButton(root) ?: return
+        val targetParent = targetButton.parent as? ViewGroup ?: return
 
-        val existingButton = root.findViewWithTag<ImageButton>(PER_APP_VOLUME_BUTTON_TAG)
-        if (existingButton != null) {
-            if (existingButton.parent !== parent) {
-                (existingButton.parent as? ViewGroup)?.removeView(existingButton)
-                addPerAppVolumeButton(parent, existingButton, target.insertIndex, target.referenceView)
-            } else {
-                existingButton.layoutParams = createPerAppVolumeButtonLayoutParams(
-                    parent,
-                    target.referenceView
-                )
-                parent.requestLayout()
+        val existingStack = root.findViewWithTag<LinearLayout>(PER_APP_VOLUME_BUTTON_STACK_TAG)
+        if (existingStack != null) {
+            val existingButton = existingStack.findViewWithTag<ImageButton>(PER_APP_VOLUME_BUTTON_TAG)
+            if (existingButton != null) {
+                appVolumeButtons[existingButton] = Unit
+                updatePerAppVolumeButton(existingButton)
             }
-
-            appVolumeButtons[existingButton] = Unit
-            updatePerAppVolumeButton(existingButton)
             updatePerAppVolumeButtons()
             return
         }
 
-        val button = ImageButton(mContext).apply {
+        val originalIndex = targetParent.indexOfChild(targetButton)
+        if (originalIndex < 0) return
+
+        val originalParams = targetButton.layoutParams
+        val buttonSize = resolveButtonSize(targetButton)
+        val stack = createPerAppVolumeButtonStack()
+        val appButton = createPerAppVolumeButton()
+
+        runCatching {
+            targetParent.clipChildren = false
+            targetParent.clipToPadding = false
+
+            targetParent.removeView(targetButton)
+
+            stack.addView(
+                targetButton,
+                LinearLayout.LayoutParams(buttonSize, buttonSize).apply {
+                    gravity = Gravity.CENTER
+                }
+            )
+
+            stack.addView(
+                appButton,
+                LinearLayout.LayoutParams(buttonSize, buttonSize).apply {
+                    gravity = Gravity.CENTER
+                }
+            )
+
+            targetParent.addView(stack, originalIndex, originalParams)
+
+            expandTouchAncestors(stack, buttonSize)
+
+            appVolumeButtons[appButton] = Unit
+            updatePerAppVolumeButton(appButton)
+            updatePerAppVolumeButtons()
+        }.onFailure {
+            runCatching {
+                if (targetButton.parent == null) {
+                    targetParent.addView(targetButton, originalIndex, originalParams)
+                }
+            }
+        }
+    }
+
+    private fun createPerAppVolumeButtonStack(): LinearLayout {
+        return LinearLayout(mContext).apply {
+            tag = PER_APP_VOLUME_BUTTON_STACK_TAG
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER
+            visibility = View.GONE
+            alpha = 0.98f
+            isClickable = false
+            setPadding(0, 0, 0, 0)
+            background = null
+        }
+    }
+
+    private fun createPerAppVolumeButton(): ImageButton {
+        return ImageButton(mContext).apply {
             tag = PER_APP_VOLUME_BUTTON_TAG
             alpha = 0.98f
             isClickable = true
@@ -454,149 +504,59 @@ class VolumePanel(context: Context) : ModPack(context) {
                 showPerAppVolumeBottomSheet()
             }
         }
-
-        addPerAppVolumeButton(parent, button, target.insertIndex, target.referenceView)
-        appVolumeButtons[button] = Unit
-        updatePerAppVolumeButton(button)
-        updatePerAppVolumeButtons()
     }
 
-    private fun addPerAppVolumeButton(
-        parent: ViewGroup,
-        button: ImageButton,
-        insertIndex: Int?,
-        referenceView: View?
-    ) {
-        runCatching {
+    private fun resolveButtonSize(referenceView: View): Int {
+        val referenceParams = referenceView.layoutParams
+        val measuredWidth = referenceView.width
+        val measuredHeight = referenceView.height
+
+        return when {
+            measuredWidth > 0 && measuredHeight > 0 -> minOf(measuredWidth, measuredHeight)
+            referenceParams?.width != null && referenceParams.width > 0 &&
+                    referenceParams.height > 0 -> minOf(referenceParams.width, referenceParams.height)
+            else -> mContext.toPx(48)
+        }.coerceIn(mContext.toPx(40), mContext.toPx(58))
+    }
+
+    private fun expandTouchAncestors(anchor: View, extraHeight: Int) {
+        var current: View? = anchor
+        repeat(8) {
+            val parent = current?.parent as? ViewGroup ?: return
+
             parent.clipChildren = false
             parent.clipToPadding = false
+            parent.minimumHeight = maxOf(parent.minimumHeight, parent.height + extraHeight)
 
-            if (parent is LinearLayout && parent.width <= mContext.toPx(160)) {
-                parent.orientation = LinearLayout.VERTICAL
-                parent.gravity = Gravity.CENTER_HORIZONTAL
-            }
-
-            val params = createPerAppVolumeButtonLayoutParams(parent, referenceView)
-            val safeIndex = insertIndex?.coerceIn(0, parent.childCount)
-
-            if (safeIndex != null && parent !is ConstraintLayout) {
-                parent.addView(button, safeIndex, params)
-            } else {
-                parent.addView(button, params)
+            val params = parent.layoutParams
+            if (params != null && params.height > 0) {
+                params.height += extraHeight
+                parent.layoutParams = params
             }
 
             parent.requestLayout()
+            current = parent
         }
     }
 
-    private fun createPerAppVolumeButtonLayoutParams(
-        parent: ViewGroup,
-        referenceView: View?
-    ): ViewGroup.LayoutParams {
-        val referenceParams = referenceView?.layoutParams
-        val referenceWidth = referenceParams?.width ?: 0
-        val referenceHeight = referenceParams?.height ?: 0
-        val measuredWidth = referenceView?.width ?: 0
-        val measuredHeight = referenceView?.height ?: 0
-        val buttonSize = mContext.toPx(48)
-        val width = when {
-            referenceWidth > 0 -> referenceWidth
-            measuredWidth > 0 -> measuredWidth
-            else -> buttonSize
-        }
-        val height = when {
-            referenceHeight > 0 -> referenceHeight
-            measuredHeight > 0 -> measuredHeight
-            else -> buttonSize
-        }
-
-        return when (parent) {
-            is ConstraintLayout -> {
-                val anchor = referenceView ?: return ConstraintLayout.LayoutParams(width, height)
-                if (anchor.id == View.NO_ID) {
-                    anchor.id = View.generateViewId()
-                }
-
-                ConstraintLayout.LayoutParams(width, height).apply {
-                    topToBottom = anchor.id
-                    startToStart = anchor.id
-                    endToEnd = anchor.id
-                    topMargin = 0
-                    bottomMargin = 0
-                }
-            }
-
-            is LinearLayout -> LinearLayout.LayoutParams(width, height).apply {
-                gravity = Gravity.CENTER_HORIZONTAL
-                topMargin = 0
-                bottomMargin = 0
-            }
-
-            is FrameLayout -> FrameLayout.LayoutParams(width, height, Gravity.CENTER or Gravity.BOTTOM)
-            else -> ViewGroup.MarginLayoutParams(width, height)
-        }
-    }
-
-    private fun findPerAppVolumeButtonTarget(root: ViewGroup): PerAppVolumeButtonTarget? {
-        val bottomSectionContainer = findViewGroupByResourceName(
-            root,
-            "volume_dialog_bottom_section_container"
-        )
-        val settingsButton = findViewByResourceName(
+    private fun findSettingsOrBottomButton(root: ViewGroup): View? {
+        findViewByResourceName(
             root,
             "volume_panel_dialog_settings_button"
-        )
+        )?.let { return it }
 
-        // Correct modern SystemUI path:
-        // volume_dialog is a ConstraintLayout and bottom_section_container is the real
-        // touchable block that contains the system |||| button. To put our button below
-        // it without losing touch events, add our button as a sibling in the same
-        // ConstraintLayout and constrain it to bottom_section_container.
-        val constraintParent = bottomSectionContainer?.parent as? ConstraintLayout
-        if (constraintParent != null) {
-            if (bottomSectionContainer.id == View.NO_ID) {
-                bottomSectionContainer.id = View.generateViewId()
-            }
-
-            return PerAppVolumeButtonTarget(
-                parent = constraintParent,
-                insertIndex = null,
-                referenceView = bottomSectionContainer
-            )
+        findViewByResourceName(
+            root,
+            "volume_dialog_bottom_section_container"
+        )?.let { bottomSection ->
+            findBottomClickableButton(bottomSection as? ViewGroup ?: root)?.let { return it }
         }
 
-        val settingsParent = settingsButton?.parent as? ViewGroup
-        if (settingsParent != null) {
-            val index = settingsParent.indexOfChild(settingsButton)
-            return PerAppVolumeButtonTarget(
-                parent = settingsParent,
-                insertIndex = if (index >= 0) index + 1 else null,
-                referenceView = settingsButton
-            )
+        findCompactVolumePanelView(root)?.let { compactPanel ->
+            findBottomClickableButton(compactPanel)?.let { return it }
         }
 
-        val compactPanel = findCompactVolumePanelView(root)
-        if (compactPanel != null) {
-            val bottomButton = findBottomClickableButton(compactPanel)
-            val parent = bottomButton?.parent as? ViewGroup ?: compactPanel
-            val index = if (bottomButton != null) parent.indexOfChild(bottomButton) else -1
-
-            return PerAppVolumeButtonTarget(
-                parent = parent,
-                insertIndex = if (index >= 0) index + 1 else null,
-                referenceView = bottomButton
-            )
-        }
-
-        if (bottomSectionContainer != null) {
-            return PerAppVolumeButtonTarget(
-                parent = bottomSectionContainer,
-                insertIndex = bottomSectionContainer.childCount,
-                referenceView = settingsButton
-            )
-        }
-
-        return null
+        return findBottomClickableButton(root)
     }
 
     private fun findViewByResourceName(root: ViewGroup, name: String): View? {
@@ -604,10 +564,6 @@ class VolumePanel(context: Context) : ModPack(context) {
         if (id == 0) return null
 
         return root.findViewById(id)
-    }
-
-    private fun findViewGroupByResourceName(root: ViewGroup, name: String): ViewGroup? {
-        return findViewByResourceName(root, name) as? ViewGroup
     }
 
     private fun findCompactVolumePanelView(root: ViewGroup): ViewGroup? {
@@ -659,7 +615,11 @@ class VolumePanel(context: Context) : ModPack(context) {
         var bestScore = Int.MIN_VALUE
 
         fun visit(view: View) {
-            if (view.tag == PER_APP_VOLUME_BUTTON_TAG) return
+            if (view.tag == PER_APP_VOLUME_BUTTON_TAG ||
+                view.tag == PER_APP_VOLUME_BUTTON_STACK_TAG
+            ) {
+                return
+            }
 
             val group = view as? ViewGroup
             val isCandidate =
@@ -1003,12 +963,6 @@ class VolumePanel(context: Context) : ModPack(context) {
 
         return row
     }
-
-    private data class PerAppVolumeButtonTarget(
-        val parent: ViewGroup,
-        val insertIndex: Int?,
-        val referenceView: View?
-    )
 
     private data class AppVolumeSource(
         val packageName: String,
