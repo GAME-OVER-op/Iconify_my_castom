@@ -299,8 +299,9 @@ class VolumePanel(context: Context) : ModPack(context) {
             return
         }
 
-        val previousVolumes = appVolumeSources.mapValues { it.value.volume }
-        appVolumeSources.clear()
+        val now = System.currentTimeMillis()
+        val previousSources = appVolumeSources.toMap()
+        val nextSources = linkedMapOf<String, AppVolumeSource>()
 
         configs.forEach { config ->
             if (!isPlaybackConfigActive(config)) return@forEach
@@ -310,23 +311,45 @@ class VolumePanel(context: Context) : ModPack(context) {
             if (packageName == mContext.packageName || packageName == "android") return@forEach
 
             val proxy = config.callMethodSilently("getPlayerProxy")
-            val volume = previousVolumes[packageName] ?: readStoredAppVolume(packageName)
+            val previousSource = previousSources[packageName]
+            val volume = previousSource?.volume ?: readStoredAppVolume(packageName)
 
-            val source = appVolumeSources.getOrPut(packageName) {
-                AppVolumeSource(
-                    packageName = packageName,
-                    label = resolveAppLabel(packageName),
-                    icon = resolveAppIcon(packageName),
-                    volume = volume,
-                    proxies = mutableListOf()
-                )
-            }
+            val source = previousSource?.copy(
+                volume = volume,
+                proxies = mutableListOf(),
+                lastSeenAtMillis = now
+            ) ?: AppVolumeSource(
+                packageName = packageName,
+                label = resolveAppLabel(packageName),
+                icon = resolveAppIcon(packageName),
+                volume = volume,
+                proxies = mutableListOf(),
+                lastSeenAtMillis = now
+            )
 
             if (proxy != null) {
                 source.proxies.add(proxy)
             }
+
             source.volume = volume
+            source.lastSeenAtMillis = now
+            nextSources[packageName] = source
         }
+
+        previousSources.values.forEach { previousSource ->
+            if (nextSources.containsKey(previousSource.packageName)) return@forEach
+
+            val recentlySeen = now - previousSource.lastSeenAtMillis <= MUTED_SOURCE_KEEP_MS
+            val isMutedByIconify = previousSource.volume <= 0.001f
+            val sheetIsOpen = appVolumeSheetView != null
+
+            if ((isMutedByIconify && recentlySeen) || sheetIsOpen) {
+                nextSources[previousSource.packageName] = previousSource
+            }
+        }
+
+        appVolumeSources.clear()
+        appVolumeSources.putAll(nextSources)
 
         appVolumeSources.values.forEach { source ->
             applyVolumeToSource(source)
@@ -645,7 +668,7 @@ class VolumePanel(context: Context) : ModPack(context) {
         row.addView(SeekBar(mContext).apply {
             max = 100
             progress = (source.volume * 100f).roundToInt().coerceIn(0, 100)
-            isEnabled = source.proxies.isNotEmpty()
+            isEnabled = true
             setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
                 override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
                     percentText.text = "${progress.coerceIn(0, 100)}%"
@@ -668,7 +691,8 @@ class VolumePanel(context: Context) : ModPack(context) {
         val label: String,
         val icon: android.graphics.drawable.Drawable?,
         var volume: Float,
-        val proxies: MutableList<Any>
+        val proxies: MutableList<Any>,
+        var lastSeenAtMillis: Long
     )
 
     private fun createVolumeTextView(): TextView {
@@ -706,5 +730,6 @@ class VolumePanel(context: Context) : ModPack(context) {
     companion object {
         private const val PER_APP_VOLUME_PREFS = "iconify_per_app_volume"
         private const val PLAYER_STATE_STARTED = 2
+        private const val MUTED_SOURCE_KEEP_MS = 10 * 60 * 1000L
     }
 }
