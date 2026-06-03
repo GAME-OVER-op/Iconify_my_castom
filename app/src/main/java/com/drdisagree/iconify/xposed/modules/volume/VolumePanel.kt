@@ -414,8 +414,11 @@ class VolumePanel(context: Context) : ModPack(context) {
                     parent.addView(existingHost, createPerAppVolumeHostLayoutParams(parent))
                 }
             } else {
+                parent.clipChildren = false
+                parent.clipToPadding = false
                 existingHost.layoutParams = createPerAppVolumeHostLayoutParams(parent)
                 existingHost.requestLayout()
+                parent.requestLayout()
             }
 
             val existingButton = existingHost.findViewWithTag<ImageButton>(PER_APP_VOLUME_BUTTON_TAG)
@@ -455,7 +458,13 @@ class VolumePanel(context: Context) : ModPack(context) {
         )
 
         runCatching {
+            root.clipChildren = false
+            root.clipToPadding = false
+            parent.clipChildren = false
+            parent.clipToPadding = false
             parent.addView(host, createPerAppVolumeHostLayoutParams(parent))
+            parent.requestLayout()
+            root.requestLayout()
             appVolumeButtons[button] = Unit
             updatePerAppVolumeButton(button)
             updatePerAppVolumeButtons()
@@ -469,6 +478,7 @@ class VolumePanel(context: Context) : ModPack(context) {
             gravity = Gravity.CENTER
             visibility = View.GONE
             alpha = 0.98f
+            isClickable = false
             setPadding(
                 mContext.toPx(4),
                 mContext.toPx(5),
@@ -486,8 +496,6 @@ class VolumePanel(context: Context) : ModPack(context) {
     }
 
     private fun createPerAppVolumeHostLayoutParams(parent: ViewGroup): ViewGroup.LayoutParams {
-        val size = mContext.toPx(54)
-
         return when (parent) {
             is LinearLayout -> LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
@@ -499,15 +507,17 @@ class VolumePanel(context: Context) : ModPack(context) {
             }
 
             is FrameLayout -> FrameLayout.LayoutParams(
-                size,
-                ViewGroup.LayoutParams.WRAP_CONTENT,
-                Gravity.CENTER or Gravity.BOTTOM
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                mContext.toPx(58),
+                Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL
             ).apply {
-                bottomMargin = mContext.toPx(6)
+                leftMargin = 0
+                rightMargin = 0
+                bottomMargin = mContext.toPx(2)
             }
 
             else -> ViewGroup.MarginLayoutParams(
-                size,
+                ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.WRAP_CONTENT
             ).apply {
                 topMargin = mContext.toPx(2)
@@ -517,8 +527,11 @@ class VolumePanel(context: Context) : ModPack(context) {
     }
 
     private fun findPerAppVolumeButtonParent(root: ViewGroup): ViewGroup? {
-        // Reference SystemUI puts app_volume_container inside volume_dialog_rows_container.
-        // Newer SystemUI has a bottom_section_container containing the captions/settings buttons.
+        // Variant 1: the button must be a real child of the compact volume panel.
+        // If it is attached to root/decor or a container outside the panel bounds,
+        // it may be drawn but touches pass through to the app behind it.
+        findCompactVolumePanelView(root)?.let { return it }
+
         val preferredContainers = arrayOf(
             "volume_dialog_bottom_section_container",
             "volume_dialog_rows_container",
@@ -530,14 +543,15 @@ class VolumePanel(context: Context) : ModPack(context) {
             findViewGroupByResourceName(root, name)?.let { return it }
         }
 
-        return findCompactVolumePanelView(root) ?: root
+        return root
     }
 
 
     private fun findCompactVolumePanelView(root: ViewGroup): ViewGroup? {
+        val displayWidth = mContext.resources.displayMetrics.widthPixels
         val minWidth = mContext.toPx(48)
         val maxWidth = mContext.toPx(150)
-        val minHeight = mContext.toPx(160)
+        val minHeight = mContext.toPx(140)
 
         var bestCandidate: ViewGroup? = null
         var bestScore = -1
@@ -569,7 +583,14 @@ class VolumePanel(context: Context) : ModPack(context) {
                         group.childCount >= 2
 
             if (looksLikeCompactVolumePanel) {
-                val score = height * 10 - width
+                val location = IntArray(2)
+                runCatching {
+                    group.getLocationOnScreen(location)
+                }
+
+                val rightSideBonus = if (location[0] > displayWidth / 2) 5000 else 0
+                val score = height * 10 - width + rightSideBonus
+
                 if (score > bestScore) {
                     bestScore = score
                     bestCandidate = group
