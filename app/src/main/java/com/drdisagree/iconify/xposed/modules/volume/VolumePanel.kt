@@ -1006,6 +1006,7 @@ class VolumePanel(context: Context) : ModPack(context) {
 
     companion object {
         private const val PER_APP_VOLUME_BUTTON_TAG = "iconify_per_app_volume_button"
+        private const val PER_APP_VOLUME_BUTTON_STACK_TAG = "iconify_per_app_volume_button_stack"
         private const val PER_APP_VOLUME_PREFS = "iconify_per_app_volume"
         private const val PLAYER_STATE_STARTED = 2
     }
