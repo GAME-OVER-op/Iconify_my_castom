@@ -22,6 +22,7 @@ import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.SeekBar
 import android.widget.TextView
+import androidx.constraintlayout.widget.ConstraintLayout
 import com.drdisagree.iconify.data.common.Const.SYSTEMUI_PACKAGE
 import com.drdisagree.iconify.data.keys.XposedKey
 import com.drdisagree.iconify.xposed.ModPack
@@ -478,7 +479,7 @@ class VolumePanel(context: Context) : ModPack(context) {
             val params = createPerAppVolumeButtonLayoutParams(parent, referenceView)
             val safeIndex = insertIndex?.coerceIn(0, parent.childCount)
 
-            if (safeIndex != null) {
+            if (safeIndex != null && parent !is ConstraintLayout) {
                 parent.addView(button, safeIndex, params)
             } else {
                 parent.addView(button, params)
@@ -510,6 +511,21 @@ class VolumePanel(context: Context) : ModPack(context) {
         }
 
         return when (parent) {
+            is ConstraintLayout -> {
+                val anchor = referenceView ?: return ConstraintLayout.LayoutParams(width, height)
+                if (anchor.id == View.NO_ID) {
+                    anchor.id = View.generateViewId()
+                }
+
+                ConstraintLayout.LayoutParams(width, height).apply {
+                    topToBottom = anchor.id
+                    startToStart = anchor.id
+                    endToEnd = anchor.id
+                    topMargin = 0
+                    bottomMargin = 0
+                }
+            }
+
             is LinearLayout -> LinearLayout.LayoutParams(width, height).apply {
                 gravity = Gravity.CENTER_HORIZONTAL
                 topMargin = 0
@@ -531,17 +547,21 @@ class VolumePanel(context: Context) : ModPack(context) {
             "volume_panel_dialog_settings_button"
         )
 
-        if (bottomSectionContainer != null) {
-            val directIndex = if (settingsButton?.parent === bottomSectionContainer) {
-                bottomSectionContainer.indexOfChild(settingsButton)
-            } else {
-                -1
+        // Correct modern SystemUI path:
+        // volume_dialog is a ConstraintLayout and bottom_section_container is the real
+        // touchable block that contains the system |||| button. To put our button below
+        // it without losing touch events, add our button as a sibling in the same
+        // ConstraintLayout and constrain it to bottom_section_container.
+        val constraintParent = bottomSectionContainer?.parent as? ConstraintLayout
+        if (constraintParent != null) {
+            if (bottomSectionContainer.id == View.NO_ID) {
+                bottomSectionContainer.id = View.generateViewId()
             }
 
             return PerAppVolumeButtonTarget(
-                parent = bottomSectionContainer,
-                insertIndex = if (directIndex >= 0) directIndex + 1 else bottomSectionContainer.childCount,
-                referenceView = settingsButton
+                parent = constraintParent,
+                insertIndex = null,
+                referenceView = bottomSectionContainer
             )
         }
 
@@ -565,6 +585,14 @@ class VolumePanel(context: Context) : ModPack(context) {
                 parent = parent,
                 insertIndex = if (index >= 0) index + 1 else null,
                 referenceView = bottomButton
+            )
+        }
+
+        if (bottomSectionContainer != null) {
+            return PerAppVolumeButtonTarget(
+                parent = bottomSectionContainer,
+                insertIndex = bottomSectionContainer.childCount,
+                referenceView = settingsButton
             )
         }
 
