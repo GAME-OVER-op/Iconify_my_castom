@@ -748,8 +748,8 @@
     <string name="volume_percentage_desc">Show percentage above volume slider</string>
     <string name="safety_warning_title">Safety Warning</string>
     <string name="safety_warning_desc">Show warning on high volume</string>
-    <string name="app_volume_button_title">Multiple app volume</string>
-    <string name="app_volume_button_desc">Show the system app volume button in the volume panel when supported</string>
+    <string name="app_volume_button_title">Per-app volume</string>
+    <string name="app_volume_button_desc">Show a per-app volume button in the volume panel for active audio sources</string>
     <string name="colored_ringer_icon_title">Colored Ringer Icon</string>
     <string name="colored_ringer_icon_desc">Enable if selected ringer icon is invisible</string>
 

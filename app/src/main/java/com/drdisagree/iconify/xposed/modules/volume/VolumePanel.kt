@@ -3,23 +3,24 @@ package com.drdisagree.iconify.xposed.modules.volume
 import android.annotation.SuppressLint
 import android.app.Dialog
 import android.content.Context
-import android.widget.SeekBar
-import android.widget.ImageButton
-import android.widget.ScrollView
-import android.widget.ImageView
-import android.os.Looper
-import android.os.Handler
-import android.media.AudioManager
-import android.media.AudioPlaybackConfiguration
-import android.graphics.drawable.GradientDrawable
 import android.graphics.Color
 import android.graphics.PixelFormat
+import android.graphics.drawable.GradientDrawable
+import android.media.AudioManager
+import android.media.AudioPlaybackConfiguration
+import android.os.Handler
+import android.os.Looper
 import android.view.Gravity
+import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
 import android.view.WindowManager
-import android.widget.LinearLayout
 import android.widget.FrameLayout
+import android.widget.ImageButton
+import android.widget.ImageView
+import android.widget.LinearLayout
+import android.widget.ScrollView
+import android.widget.SeekBar
 import android.widget.TextView
 import com.drdisagree.iconify.data.common.Const.SYSTEMUI_PACKAGE
 import com.drdisagree.iconify.data.keys.XposedKey
@@ -49,9 +50,8 @@ class VolumePanel(context: Context) : ModPack(context) {
 
     private val mainHandler = Handler(Looper.getMainLooper())
     private val appVolumeSources = linkedMapOf<String, AppVolumeSource>()
-    private val appVolumeButtons = WeakHashMap<View, Unit>()
+    private val appVolumeButtons = WeakHashMap<ImageButton, Unit>()
     private var appVolumeSheetView: View? = null
-    private var currentVolumeDialogObject: Any? = null
     private var playbackCallbackRegistered = false
 
     override fun updatePrefs(vararg key: String) {
@@ -248,9 +248,9 @@ class VolumePanel(context: Context) : ModPack(context) {
         }
     }
 
-
     private fun initPerAppVolume() {
-        hookPerAppVolumeButton()
+        hookLegacyVolumeDialogForPerAppVolume()
+        hookModernVolumeDialogForPerAppVolume()
 
         if (showAppVolume) {
             registerPlaybackCallback()
@@ -278,12 +278,7 @@ class VolumePanel(context: Context) : ModPack(context) {
         }
     }
 
-    private fun hookPerAppVolumeButton() {
-        hookLegacyVolumeDialogButton()
-        hookModernVolumeDialogButton()
-    }
-
-    private fun hookLegacyVolumeDialogButton() {
+    private fun hookLegacyVolumeDialogForPerAppVolume() {
         val volumeDialogImplClass = findClass(
             "$SYSTEMUI_PACKAGE.volume.VolumeDialogImpl",
             suppressError = true
@@ -300,11 +295,10 @@ class VolumePanel(context: Context) : ModPack(context) {
             .runAfter { param ->
                 if (!showAppVolume) return@runAfter
 
-                currentVolumeDialogObject = param.thisObject
                 registerPlaybackCallback()
                 refreshPlaybackSources()
 
-                val root = findRootFromVolumeDialog(param.thisObject) ?: return@runAfter
+                val root = findRootFromLegacyVolumeDialog(param.thisObject) ?: return@runAfter
                 root.post {
                     attachPerAppVolumeButton(root)
                     updatePerAppVolumeButtons()
@@ -312,7 +306,7 @@ class VolumePanel(context: Context) : ModPack(context) {
             }
     }
 
-    private fun hookModernVolumeDialogButton() {
+    private fun hookModernVolumeDialogForPerAppVolume() {
         val volumeDialogViewBinderClass = findClass(
             "$SYSTEMUI_PACKAGE.volume.dialog.ui.binder.VolumeDialogViewBinder",
             suppressError = true
@@ -327,15 +321,8 @@ class VolumePanel(context: Context) : ModPack(context) {
                 registerPlaybackCallback()
                 refreshPlaybackSources()
 
-                val dialog = param.args.firstOrNull {
-                    it?.javaClass?.name?.contains("Dialog") == true
-                }
-                currentVolumeDialogObject = dialog
-
-                val root = dialog
-                    .callMethodSilently("getWindow")
-                    ?.callMethodSilently("getDecorView") as? ViewGroup
-                    ?: return@runAfter
+                val dialog = param.args.firstOrNull { it is Dialog } as? Dialog
+                val root = dialog?.window?.decorView as? ViewGroup ?: return@runAfter
 
                 root.post {
                     attachPerAppVolumeButton(root)
@@ -379,7 +366,7 @@ class VolumePanel(context: Context) : ModPack(context) {
         )
     }
 
-    private fun findRootFromVolumeDialog(volumeDialog: Any?): ViewGroup? {
+    private fun findRootFromLegacyVolumeDialog(volumeDialog: Any?): ViewGroup? {
         val dialogView = volumeDialog.getFieldSilently("mDialogView") as? View
         if (dialogView != null) return findDecorRoot(dialogView)
 
@@ -407,30 +394,24 @@ class VolumePanel(context: Context) : ModPack(context) {
         val target = findPerAppVolumeButtonTarget(root) ?: return
         val parent = target.parent
 
-        val existingHost = root.findViewWithTag<LinearLayout>(PER_APP_VOLUME_BUTTON_HOST_TAG)
-        if (existingHost != null) {
-            if (existingHost.parent !== parent) {
-                (existingHost.parent as? ViewGroup)?.removeView(existingHost)
-                runCatching {
-                    addPerAppVolumeHost(parent, existingHost, target.insertIndex)
-                }
+        val existingButton = root.findViewWithTag<ImageButton>(PER_APP_VOLUME_BUTTON_TAG)
+        if (existingButton != null) {
+            if (existingButton.parent !== parent) {
+                (existingButton.parent as? ViewGroup)?.removeView(existingButton)
+                addPerAppVolumeButton(parent, existingButton, target.insertIndex, target.referenceView)
             } else {
-                existingHost.layoutParams = createPerAppVolumeHostLayoutParams(parent)
-                existingHost.requestLayout()
+                existingButton.layoutParams = createPerAppVolumeButtonLayoutParams(
+                    parent,
+                    target.referenceView
+                )
                 parent.requestLayout()
             }
 
-            val existingButton = existingHost.findViewWithTag<ImageButton>(PER_APP_VOLUME_BUTTON_TAG)
-            if (existingButton != null) {
-                appVolumeButtons[existingButton] = Unit
-                updatePerAppVolumeButton(existingButton)
-            }
-
+            appVolumeButtons[existingButton] = Unit
+            updatePerAppVolumeButton(existingButton)
             updatePerAppVolumeButtons()
             return
         }
-
-        val host = createPerAppVolumeButtonHost()
 
         val button = ImageButton(mContext).apply {
             tag = PER_APP_VOLUME_BUTTON_TAG
@@ -445,205 +426,183 @@ class VolumePanel(context: Context) : ModPack(context) {
                 mContext.toPx(9)
             )
             background = null
+            contentDescription = "Per-app volume"
+            setOnTouchListener { view, event ->
+                when (event.actionMasked) {
+                    MotionEvent.ACTION_DOWN -> {
+                        view.isPressed = true
+                        true
+                    }
+
+                    MotionEvent.ACTION_UP -> {
+                        view.isPressed = false
+                        view.performClick()
+                        true
+                    }
+
+                    MotionEvent.ACTION_CANCEL -> {
+                        view.isPressed = false
+                        true
+                    }
+
+                    else -> true
+                }
+            }
             setOnClickListener {
                 refreshPlaybackSources()
                 showPerAppVolumeBottomSheet()
             }
         }
 
-        host.addView(
-            button,
-            LinearLayout.LayoutParams(mContext.toPx(46), mContext.toPx(46)).apply {
-                gravity = Gravity.CENTER
-            }
-        )
+        addPerAppVolumeButton(parent, button, target.insertIndex, target.referenceView)
+        appVolumeButtons[button] = Unit
+        updatePerAppVolumeButton(button)
+        updatePerAppVolumeButtons()
+    }
 
+    private fun addPerAppVolumeButton(
+        parent: ViewGroup,
+        button: ImageButton,
+        insertIndex: Int?,
+        referenceView: View?
+    ) {
         runCatching {
-            addPerAppVolumeHost(parent, host, target.insertIndex)
-            appVolumeButtons[button] = Unit
-            updatePerAppVolumeButton(button)
-            updatePerAppVolumeButtons()
+            parent.clipChildren = false
+            parent.clipToPadding = false
+
+            if (parent is LinearLayout && parent.width <= mContext.toPx(160)) {
+                parent.orientation = LinearLayout.VERTICAL
+                parent.gravity = Gravity.CENTER_HORIZONTAL
+            }
+
+            val params = createPerAppVolumeButtonLayoutParams(parent, referenceView)
+            val safeIndex = insertIndex?.coerceIn(0, parent.childCount)
+
+            if (safeIndex != null) {
+                parent.addView(button, safeIndex, params)
+            } else {
+                parent.addView(button, params)
+            }
+
+            parent.requestLayout()
         }
     }
 
-    private fun addPerAppVolumeHost(parent: ViewGroup, host: LinearLayout, insertIndex: Int?) {
-        parent.clipChildren = false
-        parent.clipToPadding = false
-
-        val params = createPerAppVolumeHostLayoutParams(parent)
-        val safeIndex = insertIndex?.coerceIn(0, parent.childCount)
-
-        if (safeIndex != null) {
-            parent.addView(host, safeIndex, params)
-        } else {
-            parent.addView(host, params)
+    private fun createPerAppVolumeButtonLayoutParams(
+        parent: ViewGroup,
+        referenceView: View?
+    ): ViewGroup.LayoutParams {
+        val referenceParams = referenceView?.layoutParams
+        val referenceWidth = referenceParams?.width ?: 0
+        val referenceHeight = referenceParams?.height ?: 0
+        val measuredWidth = referenceView?.width ?: 0
+        val measuredHeight = referenceView?.height ?: 0
+        val buttonSize = mContext.toPx(48)
+        val width = when {
+            referenceWidth > 0 -> referenceWidth
+            measuredWidth > 0 -> measuredWidth
+            else -> buttonSize
+        }
+        val height = when {
+            referenceHeight > 0 -> referenceHeight
+            measuredHeight > 0 -> measuredHeight
+            else -> buttonSize
         }
 
-        parent.requestLayout()
-    }
-
-    private fun createPerAppVolumeButtonHost(): LinearLayout {
-        return LinearLayout(mContext).apply {
-            tag = PER_APP_VOLUME_BUTTON_HOST_TAG
-            orientation = LinearLayout.VERTICAL
-            gravity = Gravity.CENTER
-            visibility = View.GONE
-            alpha = 0.98f
-            isClickable = false
-            setPadding(
-                mContext.toPx(4),
-                mContext.toPx(2),
-                mContext.toPx(4),
-                mContext.toPx(3)
-            )
-            background = null
-        }
-    }
-
-    private fun createPerAppVolumeHostLayoutParams(parent: ViewGroup): ViewGroup.LayoutParams {
         return when (parent) {
-            is LinearLayout -> LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                mContext.toPx(54)
-            ).apply {
+            is LinearLayout -> LinearLayout.LayoutParams(width, height).apply {
                 gravity = Gravity.CENTER_HORIZONTAL
                 topMargin = 0
                 bottomMargin = 0
             }
 
-            is FrameLayout -> FrameLayout.LayoutParams(
-                FrameLayout.LayoutParams.MATCH_PARENT,
-                mContext.toPx(54),
-                Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL
-            ).apply {
-                leftMargin = 0
-                rightMargin = 0
-                bottomMargin = 0
-            }
-
-            else -> ViewGroup.MarginLayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                mContext.toPx(54)
-            )
+            is FrameLayout -> FrameLayout.LayoutParams(width, height, Gravity.CENTER or Gravity.BOTTOM)
+            else -> ViewGroup.MarginLayoutParams(width, height)
         }
     }
 
     private fun findPerAppVolumeButtonTarget(root: ViewGroup): PerAppVolumeButtonTarget? {
-        val compactPanel = findCompactVolumePanelView(root)
-
-        if (compactPanel != null) {
-            findBottomButtonTarget(compactPanel)?.let { return it }
-            return PerAppVolumeButtonTarget(compactPanel, null)
-        }
-
-        val preferredContainers = arrayOf(
-            "volume_dialog_bottom_section_container",
-            "volume_dialog_rows_container",
-            "volume_dialog_bottom_section",
-            "volume_dialog_rows"
+        val bottomSectionContainer = findViewGroupByResourceName(
+            root,
+            "volume_dialog_bottom_section_container"
+        )
+        val settingsButton = findViewByResourceName(
+            root,
+            "volume_panel_dialog_settings_button"
         )
 
-        preferredContainers.forEach { name ->
-            findViewGroupByResourceName(root, name)?.let { container ->
-                return findBottomButtonTarget(container)
-                    ?: PerAppVolumeButtonTarget(container, null)
+        if (bottomSectionContainer != null) {
+            val directIndex = if (settingsButton?.parent === bottomSectionContainer) {
+                bottomSectionContainer.indexOfChild(settingsButton)
+            } else {
+                -1
             }
+
+            return PerAppVolumeButtonTarget(
+                parent = bottomSectionContainer,
+                insertIndex = if (directIndex >= 0) directIndex + 1 else bottomSectionContainer.childCount,
+                referenceView = settingsButton
+            )
         }
 
-        return PerAppVolumeButtonTarget(root, null)
+        val settingsParent = settingsButton?.parent as? ViewGroup
+        if (settingsParent != null) {
+            val index = settingsParent.indexOfChild(settingsButton)
+            return PerAppVolumeButtonTarget(
+                parent = settingsParent,
+                insertIndex = if (index >= 0) index + 1 else null,
+                referenceView = settingsButton
+            )
+        }
+
+        val compactPanel = findCompactVolumePanelView(root)
+        if (compactPanel != null) {
+            val bottomButton = findBottomClickableButton(compactPanel)
+            val parent = bottomButton?.parent as? ViewGroup ?: compactPanel
+            val index = if (bottomButton != null) parent.indexOfChild(bottomButton) else -1
+
+            return PerAppVolumeButtonTarget(
+                parent = parent,
+                insertIndex = if (index >= 0) index + 1 else null,
+                referenceView = bottomButton
+            )
+        }
+
+        return null
     }
 
-    private fun findBottomButtonTarget(root: ViewGroup): PerAppVolumeButtonTarget? {
-        var bestView: View? = null
-        var bestScore = Int.MIN_VALUE
+    private fun findViewByResourceName(root: ViewGroup, name: String): View? {
+        val id = mContext.resources.getIdentifier(name, "id", mContext.packageName)
+        if (id == 0) return null
 
-        fun visit(view: View) {
-            if (view.tag == PER_APP_VOLUME_BUTTON_TAG ||
-                view.tag == PER_APP_VOLUME_BUTTON_HOST_TAG
-            ) {
-                return
-            }
+        return root.findViewById(id)
+    }
 
-            val group = view as? ViewGroup
-
-            val isCandidate =
-                view.isShown &&
-                        view !is SeekBar &&
-                        (view.isClickable || view.hasOnClickListeners())
-
-            if (isCandidate) {
-                val location = IntArray(2)
-                runCatching {
-                    view.getLocationOnScreen(location)
-                }
-
-                val width = if (view.width > 0) view.width else view.layoutParams?.width ?: 0
-                val height = if (view.height > 0) view.height else view.layoutParams?.height ?: 0
-                val bottom = location[1] + height
-                val compactSizeBonus = if (width <= mContext.toPx(72) && height <= mContext.toPx(72)) 2000 else 0
-                val score = bottom * 10 + compactSizeBonus
-
-                if (score > bestScore) {
-                    bestScore = score
-                    bestView = view
-                }
-            }
-
-            if (group != null) {
-                for (i in 0 until group.childCount) {
-                    visit(group.getChildAt(i))
-                }
-            }
-        }
-
-        visit(root)
-
-        val view = bestView ?: return null
-        val parent = view.parent as? ViewGroup ?: return null
-        val index = parent.indexOfChild(view)
-
-        return PerAppVolumeButtonTarget(
-            parent = parent,
-            insertIndex = if (index >= 0) index + 1 else null
-        )
+    private fun findViewGroupByResourceName(root: ViewGroup, name: String): ViewGroup? {
+        return findViewByResourceName(root, name) as? ViewGroup
     }
 
     private fun findCompactVolumePanelView(root: ViewGroup): ViewGroup? {
         val displayWidth = mContext.resources.displayMetrics.widthPixels
         val minWidth = mContext.toPx(48)
-        val maxWidth = mContext.toPx(150)
+        val maxWidth = mContext.toPx(170)
         val minHeight = mContext.toPx(140)
 
         var bestCandidate: ViewGroup? = null
-        var bestScore = -1
-
-        fun viewSize(view: View): Pair<Int, Int> {
-            val width = if (view.width > 0) {
-                view.width
-            } else {
-                view.layoutParams?.width ?: 0
-            }
-
-            val height = if (view.height > 0) {
-                view.height
-            } else {
-                view.layoutParams?.height ?: 0
-            }
-
-            return width to height
-        }
+        var bestScore = Int.MIN_VALUE
 
         fun visit(view: View) {
             val group = view as? ViewGroup ?: return
-            val (width, height) = viewSize(group)
+            val width = if (group.width > 0) group.width else group.layoutParams?.width ?: 0
+            val height = if (group.height > 0) group.height else group.layoutParams?.height ?: 0
 
-            val looksLikeCompactVolumePanel =
+            val looksLikeCompactPanel =
                 width in minWidth..maxWidth &&
                         height >= minHeight &&
                         height > width * 2 &&
                         group.childCount >= 2
 
-            if (looksLikeCompactVolumePanel) {
+            if (looksLikeCompactPanel) {
                 val location = IntArray(2)
                 runCatching {
                     group.getLocationOnScreen(location)
@@ -664,15 +623,53 @@ class VolumePanel(context: Context) : ModPack(context) {
         }
 
         visit(root)
-
         return bestCandidate
     }
 
-    private fun findViewGroupByResourceName(root: ViewGroup, name: String): ViewGroup? {
-        val id = mContext.resources.getIdentifier(name, "id", mContext.packageName)
-        if (id == 0) return null
+    private fun findBottomClickableButton(root: ViewGroup): View? {
+        var bestView: View? = null
+        var bestScore = Int.MIN_VALUE
 
-        return root.findViewById<View>(id) as? ViewGroup
+        fun visit(view: View) {
+            if (view.tag == PER_APP_VOLUME_BUTTON_TAG) return
+
+            val group = view as? ViewGroup
+            val isCandidate =
+                view.isShown &&
+                        view !is SeekBar &&
+                        (view.isClickable || view.hasOnClickListeners())
+
+            if (isCandidate) {
+                val location = IntArray(2)
+                runCatching {
+                    view.getLocationOnScreen(location)
+                }
+
+                val width = if (view.width > 0) view.width else view.layoutParams?.width ?: 0
+                val height = if (view.height > 0) view.height else view.layoutParams?.height ?: 0
+                val bottom = location[1] + height
+                val compactBonus = if (width <= mContext.toPx(80) && height <= mContext.toPx(80)) {
+                    3000
+                } else {
+                    0
+                }
+                val score = bottom * 10 + compactBonus
+
+                if (score > bestScore) {
+                    bestScore = score
+                    bestView = view
+                }
+            }
+
+            if (group != null) {
+                for (i in 0 until group.childCount) {
+                    visit(group.getChildAt(i))
+                }
+            }
+        }
+
+        visit(root)
+        return bestView
     }
 
     private fun updatePlaybackSources(configs: List<AudioPlaybackConfiguration>) {
@@ -788,19 +785,13 @@ class VolumePanel(context: Context) : ModPack(context) {
                 (appVolumeSources.isNotEmpty() || audioManager?.isMusicActive == true)
 
         appVolumeButtons.keys.toList().forEach { button ->
-            val host = button.parent as? View
-
-            if (host == null || host.parent == null) {
+            if (button.parent == null) {
                 appVolumeButtons.remove(button)
                 return@forEach
             }
 
-            host.visibility = if (shouldShow) View.VISIBLE else View.GONE
             button.visibility = if (shouldShow) View.VISIBLE else View.GONE
-
-            if (button is ImageButton) {
-                updatePerAppVolumeButton(button)
-            }
+            updatePerAppVolumeButton(button)
         }
     }
 
@@ -811,11 +802,6 @@ class VolumePanel(context: Context) : ModPack(context) {
         }.getOrNull()
 
         button.setImageDrawable(firstSource?.icon ?: fallbackIcon)
-    }
-
-    private fun hideSystemVolumeDialog() {
-        currentVolumeDialogObject.callMethodSilently("dismissH")
-        currentVolumeDialogObject.callMethodSilently("dismiss")
     }
 
     private fun showPerAppVolumeBottomSheet() {
@@ -839,8 +825,8 @@ class VolumePanel(context: Context) : ModPack(context) {
         overlay.addView(
             sheet,
             FrameLayout.LayoutParams(
-                FrameLayout.LayoutParams.MATCH_PARENT,
-                FrameLayout.LayoutParams.WRAP_CONTENT,
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT,
                 Gravity.BOTTOM
             ).apply {
                 leftMargin = mContext.toPx(12)
@@ -879,15 +865,9 @@ class VolumePanel(context: Context) : ModPack(context) {
     }
 
     private fun refreshPerAppVolumeBottomSheet() {
-        val oldView = appVolumeSheetView ?: return
-        val windowManager =
-            mContext.getSystemService(Context.WINDOW_SERVICE) as? WindowManager ?: return
+        if (appVolumeSheetView == null) return
 
-        runCatching {
-            windowManager.removeView(oldView)
-        }
-
-        appVolumeSheetView = null
+        dismissPerAppVolumeBottomSheet()
         showPerAppVolumeBottomSheet()
     }
 
@@ -998,7 +978,8 @@ class VolumePanel(context: Context) : ModPack(context) {
 
     private data class PerAppVolumeButtonTarget(
         val parent: ViewGroup,
-        val insertIndex: Int?
+        val insertIndex: Int?,
+        val referenceView: View?
     )
 
     private data class AppVolumeSource(
@@ -1040,11 +1021,10 @@ class VolumePanel(context: Context) : ModPack(context) {
 
         return volumeNumber
     }
+
     companion object {
         private const val PER_APP_VOLUME_BUTTON_TAG = "iconify_per_app_volume_button"
-        private const val PER_APP_VOLUME_BUTTON_HOST_TAG = "iconify_per_app_volume_button_host"
         private const val PER_APP_VOLUME_PREFS = "iconify_per_app_volume"
         private const val PLAYER_STATE_STARTED = 2
     }
-
 }
