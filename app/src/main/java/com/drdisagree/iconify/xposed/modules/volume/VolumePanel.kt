@@ -242,8 +242,7 @@ class VolumePanel(context: Context) : ModPack(context) {
     }
 
     private fun initPerAppVolume() {
-        hookLegacyVolumeDialogForPerAppVolume()
-        hookModernVolumeDialogForPerAppVolume()
+        hookExpandedVolumePanelDialogForPerAppVolume()
 
         if (showAppVolume) {
             registerPlaybackCallback()
@@ -271,51 +270,23 @@ class VolumePanel(context: Context) : ModPack(context) {
         }
     }
 
-    private fun hookLegacyVolumeDialogForPerAppVolume() {
-        val volumeDialogImplClass = findClass(
-            "$SYSTEMUI_PACKAGE.volume.VolumeDialogImpl",
+    private fun hookExpandedVolumePanelDialogForPerAppVolume() {
+        val volumePanelDialogClass = findClass(
+            "$SYSTEMUI_PACKAGE.volume.VolumePanelDialog",
             suppressError = true
         ) ?: return
 
-        volumeDialogImplClass
-            .hookMethod(
-                "showH",
-                "updateRowsH",
-                "updateVolumeRowH",
-                "initRow"
-            )
+        volumePanelDialogClass
+            .hookMethod("show", "onStart", "onWindowFocusChanged")
             .suppressError()
             .runAfter { param ->
                 if (!showAppVolume) return@runAfter
 
-                registerPlaybackCallback()
-                refreshPlaybackSources()
-
-                val root = findRootFromLegacyVolumeDialog(param.thisObject) ?: return@runAfter
-                root.post {
-                    attachPerAppVolumeExpandedPanel(root)
-                    updatePerAppVolumePanels()
-                }
-            }
-    }
-
-    private fun hookModernVolumeDialogForPerAppVolume() {
-        val volumeDialogViewBinderClass = findClass(
-            "$SYSTEMUI_PACKAGE.volume.dialog.ui.binder.VolumeDialogViewBinder",
-            suppressError = true
-        )
-
-        volumeDialogViewBinderClass
-            .hookMethod("bind")
-            .suppressError()
-            .runAfter { param ->
-                if (!showAppVolume) return@runAfter
+                val dialog = param.thisObject as? Dialog ?: return@runAfter
+                val root = dialog.window?.decorView as? ViewGroup ?: return@runAfter
 
                 registerPlaybackCallback()
                 refreshPlaybackSources()
-
-                val dialog = param.args.firstOrNull { it is Dialog } as? Dialog
-                val root = dialog?.window?.decorView as? ViewGroup ?: return@runAfter
 
                 root.post {
                     attachPerAppVolumeExpandedPanel(root)
@@ -323,26 +294,13 @@ class VolumePanel(context: Context) : ModPack(context) {
                 }
             }
 
-        val volumeDialogSlidersViewBinderClass = findClass(
-            "$SYSTEMUI_PACKAGE.volume.dialog.sliders.ui.VolumeDialogSlidersViewBinder",
-            suppressError = true
-        )
-
-        volumeDialogSlidersViewBinderClass
-            .hookMethod("bind")
+        volumePanelDialogClass
+            .hookMethod("dismiss", "cancel")
             .suppressError()
-            .runAfter { param ->
-                if (!showAppVolume) return@runAfter
-
-                registerPlaybackCallback()
-                refreshPlaybackSources()
-
-                val bindView = param.args.firstOrNull { it is View } as? View ?: return@runAfter
-                val root = findDecorRoot(bindView) ?: return@runAfter
-
-                root.post {
-                    attachPerAppVolumeExpandedPanel(root)
-                    updatePerAppVolumePanels()
+            .runBefore {
+                appVolumePanels.keys.toList().forEach { panel ->
+                    (panel.parent as? ViewGroup)?.removeView(panel)
+                    appVolumePanels.remove(panel)
                 }
             }
     }
@@ -384,8 +342,9 @@ class VolumePanel(context: Context) : ModPack(context) {
     }
 
     private fun attachPerAppVolumeExpandedPanel(root: ViewGroup) {
-        val parent = findExpandedVolumePanelParent(root) ?: return
+        val parent = findVolumePanelDialogOverlayParent(root) ?: return
         val existingPanel = root.findViewWithTag<LinearLayout>(PER_APP_VOLUME_PANEL_TAG)
+            ?: parent.findViewWithTag(PER_APP_VOLUME_PANEL_TAG)
 
         if (existingPanel != null) {
             if (existingPanel.parent !== parent) {
@@ -414,16 +373,9 @@ class VolumePanel(context: Context) : ModPack(context) {
         runCatching {
             parent.clipChildren = false
             parent.clipToPadding = false
-
-            val insertIndex = findPerAppVolumePanelInsertIndex(parent)
-            val params = createPerAppVolumePanelLayoutParams(parent)
-
-            if (insertIndex != null && parent is LinearLayout) {
-                parent.addView(panel, insertIndex, params)
-            } else {
-                parent.addView(panel, params)
-            }
-
+            panel.isClickable = true
+            panel.isFocusable = true
+            parent.addView(panel, createPerAppVolumePanelLayoutParams(parent))
             parent.requestLayout()
         }
     }
@@ -441,106 +393,79 @@ class VolumePanel(context: Context) : ModPack(context) {
             )
             background = GradientDrawable().apply {
                 cornerRadius = mContext.toPx(24).toFloat()
-                setColor(Color.argb(46, 255, 255, 255))
+                setColor(Color.argb(210, 28, 32, 38))
             }
         }
     }
 
     private fun createPerAppVolumePanelLayoutParams(parent: ViewGroup): ViewGroup.LayoutParams {
+        val width = mContext.resources.displayMetrics.widthPixels
+        val topMargin = calculateExpandedPanelTopMargin(parent)
+
         return when (parent) {
+            is FrameLayout -> FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.WRAP_CONTENT,
+                Gravity.TOP or Gravity.CENTER_HORIZONTAL
+            ).apply {
+                leftMargin = mContext.toPx(38)
+                rightMargin = mContext.toPx(38)
+                this.topMargin = topMargin
+            }
+
             is LinearLayout -> LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT
             ).apply {
-                topMargin = mContext.toPx(8)
+                leftMargin = mContext.toPx(38)
+                rightMargin = mContext.toPx(38)
+                this.topMargin = mContext.toPx(8)
                 bottomMargin = mContext.toPx(8)
             }
 
             else -> ViewGroup.MarginLayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
+                width - mContext.toPx(76),
                 ViewGroup.LayoutParams.WRAP_CONTENT
             ).apply {
-                topMargin = mContext.toPx(8)
-                bottomMargin = mContext.toPx(8)
+                this.topMargin = topMargin
+                leftMargin = mContext.toPx(38)
+                rightMargin = mContext.toPx(38)
             }
         }
     }
 
-    private fun findPerAppVolumePanelInsertIndex(parent: ViewGroup): Int? {
-        // In the expanded volume settings screen, the first row is usually the media row.
-        // Insert our block immediately after it. If the container layout is different,
-        // append to the container rather than touching the compact volume button area.
-        return if (parent.childCount > 0) 1.coerceAtMost(parent.childCount) else null
-    }
+    private fun findVolumePanelDialogOverlayParent(root: ViewGroup): ViewGroup? {
+        // VolumePanelDialog is the expanded sound settings window.  We attach the
+        // panel to the dialog content/decor only there, never to the compact
+        // VolumeDialog, otherwise it appears in the wrong place and may be
+        // non-clickable.
+        val content = root.findViewById<ViewGroup>(android.R.id.content)
+        if (content != null) return content
 
-    private fun findExpandedVolumePanelParent(root: ViewGroup): ViewGroup? {
-        val rows = findViewGroupByResourceName(root, "volume_dialog_rows")
-        if (rows != null && isExpandedVolumeContainer(rows)) return rows
+        if (root is FrameLayout) return root
 
-        val rowsContainer = findViewGroupByResourceName(root, "volume_dialog_rows_container")
-        if (rowsContainer != null && isExpandedVolumeContainer(rowsContainer)) return rowsContainer
-
-        val mainDialog = findViewGroupByResourceName(root, "volume_dialog")
-        if (mainDialog != null && isExpandedVolumeContainer(mainDialog)) {
-            findViewGroupByResourceName(mainDialog, "volume_dialog_rows")?.let { return it }
-            return mainDialog
+        for (i in root.childCount - 1 downTo 0) {
+            val child = root.getChildAt(i) as? ViewGroup ?: continue
+            if (child is FrameLayout || child.width >= root.width * 0.75f) {
+                return child
+            }
         }
 
-        return findLargeVerticalPanel(root)
+        return root
     }
 
-    private fun isExpandedVolumeContainer(view: View): Boolean {
-        if (!view.isShown) return false
-
-        val displayWidth = mContext.resources.displayMetrics.widthPixels
+    private fun calculateExpandedPanelTopMargin(parent: ViewGroup): Int {
         val displayHeight = mContext.resources.displayMetrics.heightPixels
-        val width = if (view.width > 0) view.width else view.layoutParams?.width ?: 0
-        val height = if (view.height > 0) view.height else view.layoutParams?.height ?: 0
+        val parentHeight = if (parent.height > 0) parent.height else displayHeight
 
-        return width >= displayWidth * 0.45f || height >= displayHeight * 0.32f
-    }
-
-    private fun findLargeVerticalPanel(root: ViewGroup): ViewGroup? {
-        val displayWidth = mContext.resources.displayMetrics.widthPixels
-        val displayHeight = mContext.resources.displayMetrics.heightPixels
-        var best: ViewGroup? = null
-        var bestScore = Int.MIN_VALUE
-
-        fun visit(view: View) {
-            val group = view as? ViewGroup ?: return
-            val width = if (group.width > 0) group.width else group.layoutParams?.width ?: 0
-            val height = if (group.height > 0) group.height else group.layoutParams?.height ?: 0
-
-            val isLarge = group.isShown &&
-                    (width >= displayWidth * 0.45f || height >= displayHeight * 0.32f) &&
-                    group.childCount >= 2
-
-            if (isLarge) {
-                val score = width + height + group.childCount * 80
-                if (score > bestScore) {
-                    bestScore = score
-                    best = group
-                }
-            }
-
-            for (i in 0 until group.childCount) {
-                visit(group.getChildAt(i))
-            }
+        // Expanded panel on this SystemUI starts around the lower half of the
+        // screen.  Put the block below the media slider area, not in the compact
+        // volume dialog.
+        return if (parentHeight >= displayHeight * 0.75f) {
+            (displayHeight * 0.58f).toInt()
+        } else {
+            (parentHeight * 0.34f).toInt()
         }
-
-        visit(root)
-        return best
-    }
-
-    private fun findViewByResourceName(root: ViewGroup, name: String): View? {
-        val id = mContext.resources.getIdentifier(name, "id", mContext.packageName)
-        if (id == 0) return null
-
-        return root.findViewById(id)
-    }
-
-    private fun findViewGroupByResourceName(root: ViewGroup, name: String): ViewGroup? {
-        return findViewByResourceName(root, name) as? ViewGroup
     }
 
     private fun updatePlaybackSources(configs: List<AudioPlaybackConfiguration>) {
@@ -656,11 +581,11 @@ class VolumePanel(context: Context) : ModPack(context) {
                 return@forEach
             }
 
-            val parent = panel.parent as? View
-            val expanded = parent?.let { isExpandedVolumeContainer(it) } ?: false
-            panel.visibility = if (shouldShow && expanded) View.VISIBLE else View.GONE
+            panel.visibility = if (shouldShow) View.VISIBLE else View.GONE
 
             if (panel.visibility == View.VISIBLE) {
+                panel.layoutParams = createPerAppVolumePanelLayoutParams(panel.parent as ViewGroup)
+                panel.requestLayout()
                 updatePerAppVolumePanel(panel)
             }
         }
