@@ -37,6 +37,7 @@ import com.drdisagree.iconify.xposed.modules.extras.utils.toolkit.hookMethod
 import com.drdisagree.iconify.xposed.modules.extras.utils.toolkit.setField
 import com.drdisagree.iconify.xposed.utils.XPrefs.Xprefs
 import de.robv.android.xposed.callbacks.XC_LoadPackage.LoadPackageParam
+import java.util.WeakHashMap
 import kotlin.math.ceil
 import kotlin.math.roundToInt
 
@@ -49,6 +50,8 @@ class VolumePanel(context: Context) : ModPack(context) {
 
     private val mainHandler = Handler(Looper.getMainLooper())
     private val appVolumeSources = linkedMapOf<String, AppVolumeSource>()
+    private val retainedAppVolumeSources = linkedMapOf<String, AppVolumeSource>()
+    private val appVolumeCardButtons = WeakHashMap<ImageButton, Unit>()
     private var appVolumeButtonView: View? = null
     private var appVolumeSheetView: View? = null
     private var playbackCallbackRegistered = false
@@ -64,10 +67,13 @@ class VolumePanel(context: Context) : ModPack(context) {
             mainHandler.post {
                 registerPlaybackCallback()
                 refreshPlaybackSources()
+                updatePerAppVolumeCardButtons()
                 updateFloatingPerAppVolumeOverlay()
             }
         } else {
             appVolumeSources.clear()
+            retainedAppVolumeSources.clear()
+            updatePerAppVolumeCardButtons()
             dismissFloatingPerAppVolumeOverlay()
         }
     }
@@ -247,6 +253,8 @@ class VolumePanel(context: Context) : ModPack(context) {
     }
 
     private fun initPerAppVolume() {
+        hookPerAppVolumeCardEntry()
+
         if (showAppVolume) {
             mainHandler.post {
                 registerPlaybackCallback()
@@ -293,6 +301,7 @@ class VolumePanel(context: Context) : ModPack(context) {
     private fun updatePlaybackSources(configs: List<AudioPlaybackConfiguration>) {
         if (!showAppVolume) {
             appVolumeSources.clear()
+            retainedAppVolumeSources.clear()
             mainHandler.post {
                 dismissFloatingPerAppVolumeOverlay()
             }
@@ -300,7 +309,7 @@ class VolumePanel(context: Context) : ModPack(context) {
         }
 
         val now = System.currentTimeMillis()
-        val previousSources = appVolumeSources.toMap()
+        val previousSources = retainedAppVolumeSources.toMap()
         val nextSources = linkedMapOf<String, AppVolumeSource>()
 
         configs.forEach { config ->
@@ -334,6 +343,7 @@ class VolumePanel(context: Context) : ModPack(context) {
             source.volume = volume
             source.lastSeenAtMillis = now
             nextSources[packageName] = source
+            retainedAppVolumeSources[packageName] = source
         }
 
         previousSources.values.forEach { previousSource ->
@@ -343,19 +353,26 @@ class VolumePanel(context: Context) : ModPack(context) {
             val isMutedByIconify = previousSource.volume <= 0.001f
             val sheetIsOpen = appVolumeSheetView != null
 
-            if ((isMutedByIconify && recentlySeen) || sheetIsOpen) {
+            // Important: a player muted through PlayerProxy.setVolume(0f) can disappear
+            // from active playback callbacks even while the app is still playing.
+            // Keep explicitly muted sources in the UI so the user can restore them.
+            if (isMutedByIconify || sheetIsOpen || recentlySeen) {
                 nextSources[previousSource.packageName] = previousSource
+            } else {
+                retainedAppVolumeSources.remove(previousSource.packageName)
             }
         }
 
         appVolumeSources.clear()
         appVolumeSources.putAll(nextSources)
+        retainedAppVolumeSources.putAll(nextSources)
 
         appVolumeSources.values.forEach { source ->
             applyVolumeToSource(source)
         }
 
         mainHandler.post {
+            updatePerAppVolumeCardButtons()
             updateFloatingPerAppVolumeOverlay()
             refreshFloatingPerAppVolumeSheet()
         }
@@ -404,10 +421,33 @@ class VolumePanel(context: Context) : ModPack(context) {
             .getSharedPreferences(PER_APP_VOLUME_PREFS, Context.MODE_PRIVATE)
 
     private fun setSourceVolume(packageName: String, volume: Float) {
-        val source = appVolumeSources[packageName] ?: return
-        source.volume = volume.coerceIn(0f, 1f)
+        val coercedVolume = volume.coerceIn(0f, 1f)
+        val source = appVolumeSources[packageName]
+            ?: retainedAppVolumeSources[packageName]
+            ?: AppVolumeSource(
+                packageName = packageName,
+                label = resolveAppLabel(packageName),
+                icon = resolveAppIcon(packageName),
+                volume = coercedVolume,
+                proxies = mutableListOf(),
+                lastSeenAtMillis = System.currentTimeMillis()
+            )
+
+        source.volume = coercedVolume
+        source.lastSeenAtMillis = System.currentTimeMillis()
+        appVolumeSources[packageName] = source
+        retainedAppVolumeSources[packageName] = source
+
         writeStoredAppVolume(packageName, source.volume)
-        applyVolumeToSource(source)
+
+        if (coercedVolume > 0.001f) {
+            // Re-read active players before applying a restore from 0%.
+            // At 0%, some players can be temporarily absent from callbacks.
+            refreshPlaybackSources()
+        }
+
+        applyVolumeToSource(appVolumeSources[packageName] ?: source)
+        refreshFloatingPerAppVolumeSheet()
     }
 
     private fun applyVolumeToSource(source: AppVolumeSource) {
@@ -416,6 +456,223 @@ class VolumePanel(context: Context) : ModPack(context) {
         source.proxies.forEach { proxy ->
             proxy.callMethodSilently("setVolume", volume)
         }
+    }
+
+    private fun hookPerAppVolumeCardEntry() {
+        val settingsButtonBinderClass = findClass(
+            "$SYSTEMUI_PACKAGE.volume.dialog.settings.ui.binder.VolumeDialogSettingsButtonViewBinder",
+            suppressError = true
+        )
+
+        settingsButtonBinderClass
+            .hookMethod("bind")
+            .suppressError()
+            .runAfter { param ->
+                if (!showAppVolume) return@runAfter
+
+                registerPlaybackCallback()
+                refreshPlaybackSources()
+
+                val bindView = param.args.firstOrNull { it is View } as? View ?: return@runAfter
+                val root = findDecorRootSilently(bindView) ?: return@runAfter
+
+                root.post {
+                    attachPerAppVolumeCardButton(root)
+                    updatePerAppVolumeCardButtons()
+                }
+            }
+
+        val volumeDialogViewBinderClass = findClass(
+            "$SYSTEMUI_PACKAGE.volume.dialog.ui.binder.VolumeDialogViewBinder",
+            suppressError = true
+        )
+
+        volumeDialogViewBinderClass
+            .hookMethod("bind")
+            .suppressError()
+            .runAfter { param ->
+                if (!showAppVolume) return@runAfter
+
+                registerPlaybackCallback()
+                refreshPlaybackSources()
+
+                val dialog = param.args.firstOrNull { it is Dialog } as? Dialog
+                val root = dialog?.window?.decorView as? ViewGroup ?: return@runAfter
+
+                root.post {
+                    attachPerAppVolumeCardButton(root)
+                    updatePerAppVolumeCardButtons()
+                }
+            }
+    }
+
+    private fun findDecorRootSilently(view: View): ViewGroup? {
+        var current: View? = view
+
+        repeat(12) {
+            val parent = current?.parent as? View
+            if (parent == null) {
+                return current as? ViewGroup
+            }
+            current = parent
+        }
+
+        return current as? ViewGroup
+    }
+
+    private fun attachPerAppVolumeCardButton(root: ViewGroup) {
+        if (root.findViewWithTag<ImageButton>(PER_APP_VOLUME_CARD_BUTTON_TAG) != null) return
+
+        val settingsButton = findViewByResourceName(root, "volume_panel_dialog_settings_button")
+            ?: findBottomSettingsLikeButton(root)
+            ?: return
+        val parent = settingsButton.parent as? ViewGroup ?: return
+
+        val button = createPerAppVolumeCardButton()
+        val insertIndex = parent.indexOfChild(settingsButton).let { index ->
+            if (index >= 0) index + 1 else parent.childCount
+        }
+
+        val params = createPerAppVolumeCardButtonLayoutParams(parent, settingsButton)
+
+        runCatching {
+            parent.clipChildren = false
+            parent.clipToPadding = false
+            parent.addView(button, insertIndex.coerceIn(0, parent.childCount), params)
+            parent.requestLayout()
+            appVolumeCardButtons[button] = Unit
+            updatePerAppVolumeCardButton(button)
+        }
+    }
+
+    private fun createPerAppVolumeCardButton(): ImageButton {
+        return ImageButton(mContext).apply {
+            tag = PER_APP_VOLUME_CARD_BUTTON_TAG
+            alpha = 0.96f
+            visibility = View.GONE
+            scaleType = ImageView.ScaleType.CENTER_INSIDE
+            setPadding(
+                mContext.toPx(9),
+                mContext.toPx(9),
+                mContext.toPx(9),
+                mContext.toPx(9)
+            )
+            background = null
+            contentDescription = "Per-app volume"
+            setOnClickListener {
+                refreshPlaybackSources()
+                showFloatingPerAppVolumeSheet()
+            }
+        }
+    }
+
+    private fun createPerAppVolumeCardButtonLayoutParams(parent: ViewGroup, reference: View): ViewGroup.LayoutParams {
+        val size = resolveViewSize(reference)
+
+        return when (parent) {
+            is LinearLayout -> LinearLayout.LayoutParams(size, size).apply {
+                gravity = Gravity.CENTER
+                leftMargin = mContext.toPx(2)
+                rightMargin = mContext.toPx(2)
+            }
+
+            is FrameLayout -> FrameLayout.LayoutParams(size, size, Gravity.CENTER).apply {
+                leftMargin = mContext.toPx(2)
+                rightMargin = mContext.toPx(2)
+            }
+
+            else -> ViewGroup.MarginLayoutParams(size, size).apply {
+                leftMargin = mContext.toPx(2)
+                rightMargin = mContext.toPx(2)
+            }
+        }
+    }
+
+    private fun resolveViewSize(reference: View): Int {
+        val width = if (reference.width > 0) reference.width else reference.layoutParams?.width ?: 0
+        val height = if (reference.height > 0) reference.height else reference.layoutParams?.height ?: 0
+
+        return when {
+            width > 0 && height > 0 -> minOf(width, height)
+            width > 0 -> width
+            height > 0 -> height
+            else -> mContext.toPx(48)
+        }.coerceIn(mContext.toPx(38), mContext.toPx(56))
+    }
+
+    private fun findViewByResourceName(root: ViewGroup, name: String): View? {
+        val id = mContext.resources.getIdentifier(name, "id", mContext.packageName)
+        if (id == 0) return null
+
+        return root.findViewById(id)
+    }
+
+    private fun findBottomSettingsLikeButton(root: ViewGroup): View? {
+        var bestView: View? = null
+        var bestScore = Int.MIN_VALUE
+
+        fun visit(view: View) {
+            if (view.tag == PER_APP_VOLUME_CARD_BUTTON_TAG) return
+
+            val group = view as? ViewGroup
+            val isCandidate = view.isShown &&
+                    view !is SeekBar &&
+                    (view.isClickable || view.hasOnClickListeners())
+
+            if (isCandidate) {
+                val location = IntArray(2)
+                runCatching {
+                    view.getLocationOnScreen(location)
+                }
+
+                val width = if (view.width > 0) view.width else view.layoutParams?.width ?: 0
+                val height = if (view.height > 0) view.height else view.layoutParams?.height ?: 0
+                val bottom = location[1] + height
+                val compactBonus = if (width <= mContext.toPx(90) && height <= mContext.toPx(90)) 3000 else 0
+                val score = bottom * 10 + compactBonus
+
+                if (score > bestScore) {
+                    bestScore = score
+                    bestView = view
+                }
+            }
+
+            if (group != null) {
+                for (i in 0 until group.childCount) {
+                    visit(group.getChildAt(i))
+                }
+            }
+        }
+
+        visit(root)
+        return bestView
+    }
+
+    private fun updatePerAppVolumeCardButtons() {
+        val audioManager =
+            mContext.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
+
+        val shouldShow = showAppVolume &&
+                (appVolumeSources.isNotEmpty() || audioManager?.isMusicActive == true)
+
+        appVolumeCardButtons.keys.toList().forEach { button ->
+            if (button.parent == null) {
+                appVolumeCardButtons.remove(button)
+                return@forEach
+            }
+
+            button.visibility = if (shouldShow) View.VISIBLE else View.GONE
+            updatePerAppVolumeCardButton(button)
+        }
+    }
+
+    private fun updatePerAppVolumeCardButton(button: ImageButton) {
+        val firstSource = appVolumeSources.values.firstOrNull()
+        val fallbackIcon = runCatching {
+            mContext.getDrawable(android.R.drawable.ic_media_play)
+        }.getOrNull()
+
+        button.setImageDrawable(firstSource?.icon ?: fallbackIcon)
     }
 
     private fun shouldShowFloatingPerAppVolumeOverlay(): Boolean {
@@ -729,7 +986,8 @@ class VolumePanel(context: Context) : ModPack(context) {
 
     companion object {
         private const val PER_APP_VOLUME_PREFS = "iconify_per_app_volume"
+        private const val PER_APP_VOLUME_CARD_BUTTON_TAG = "iconify_per_app_volume_card_button"
         private const val PLAYER_STATE_STARTED = 2
-        private const val MUTED_SOURCE_KEEP_MS = 10 * 60 * 1000L
+        private const val MUTED_SOURCE_KEEP_MS = 30 * 60 * 1000L
     }
 }
