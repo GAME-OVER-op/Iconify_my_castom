@@ -52,6 +52,7 @@ class VolumePanel(context: Context) : ModPack(context) {
     private val appVolumeSources = linkedMapOf<String, AppVolumeSource>()
     private val retainedAppVolumeSources = linkedMapOf<String, AppVolumeSource>()
     private val appVolumeCardButtons = WeakHashMap<ImageButton, Unit>()
+    private val appVolumeSettingsLongPressViews = WeakHashMap<View, Unit>()
     private var appVolumeButtonView: View? = null
     private var appVolumeSheetView: View? = null
     private var playbackCallbackRegistered = false
@@ -67,13 +68,10 @@ class VolumePanel(context: Context) : ModPack(context) {
             mainHandler.post {
                 registerPlaybackCallback()
                 refreshPlaybackSources()
-                updatePerAppVolumeCardButtons()
-                updateFloatingPerAppVolumeOverlay()
             }
         } else {
             appVolumeSources.clear()
             retainedAppVolumeSources.clear()
-            updatePerAppVolumeCardButtons()
             dismissFloatingPerAppVolumeOverlay()
         }
     }
@@ -253,13 +251,12 @@ class VolumePanel(context: Context) : ModPack(context) {
     }
 
     private fun initPerAppVolume() {
-        hookPerAppVolumeCardEntry()
+        hookPerAppVolumeSettingsLongPress()
 
         if (showAppVolume) {
             mainHandler.post {
                 registerPlaybackCallback()
                 refreshPlaybackSources()
-                updateFloatingPerAppVolumeOverlay()
             }
         }
     }
@@ -372,8 +369,6 @@ class VolumePanel(context: Context) : ModPack(context) {
         }
 
         mainHandler.post {
-            updatePerAppVolumeCardButtons()
-            updateFloatingPerAppVolumeOverlay()
             refreshFloatingPerAppVolumeSheet()
         }
     }
@@ -458,7 +453,7 @@ class VolumePanel(context: Context) : ModPack(context) {
         }
     }
 
-    private fun hookPerAppVolumeCardEntry() {
+    private fun hookPerAppVolumeSettingsLongPress() {
         val settingsButtonBinderClass = findClass(
             "$SYSTEMUI_PACKAGE.volume.dialog.settings.ui.binder.VolumeDialogSettingsButtonViewBinder",
             suppressError = true
@@ -474,11 +469,13 @@ class VolumePanel(context: Context) : ModPack(context) {
                 refreshPlaybackSources()
 
                 val bindView = param.args.firstOrNull { it is View } as? View ?: return@runAfter
-                val root = findDecorRootSilently(bindView) ?: return@runAfter
+                installPerAppVolumeLongPress(bindView)
 
-                root.post {
-                    attachPerAppVolumeCardButton(root)
-                    updatePerAppVolumeCardButtons()
+                val root = findDecorRootSilently(bindView)
+                root?.post {
+                    findSettingsButton(root)?.let { settingsButton ->
+                        installPerAppVolumeLongPress(settingsButton)
+                    }
                 }
             }
 
@@ -493,17 +490,35 @@ class VolumePanel(context: Context) : ModPack(context) {
             .runAfter { param ->
                 if (!showAppVolume) return@runAfter
 
-                registerPlaybackCallback()
-                refreshPlaybackSources()
-
                 val dialog = param.args.firstOrNull { it is Dialog } as? Dialog
                 val root = dialog?.window?.decorView as? ViewGroup ?: return@runAfter
 
                 root.post {
-                    attachPerAppVolumeCardButton(root)
-                    updatePerAppVolumeCardButtons()
+                    findSettingsButton(root)?.let { settingsButton ->
+                        installPerAppVolumeLongPress(settingsButton)
+                    }
                 }
             }
+    }
+
+    private fun findSettingsButton(root: ViewGroup): View? {
+        return findViewByResourceName(root, "volume_panel_dialog_settings_button")
+            ?: findBottomSettingsLikeButton(root)
+    }
+
+    private fun installPerAppVolumeLongPress(view: View) {
+        if (appVolumeSettingsLongPressViews.containsKey(view)) return
+
+        appVolumeSettingsLongPressViews[view] = Unit
+        view.isLongClickable = true
+        view.setOnLongClickListener {
+            if (!showAppVolume) return@setOnLongClickListener false
+
+            registerPlaybackCallback()
+            refreshPlaybackSources()
+            showFloatingPerAppVolumeSheet()
+            true
+        }
     }
 
     private fun findDecorRootSilently(view: View): ViewGroup? {
