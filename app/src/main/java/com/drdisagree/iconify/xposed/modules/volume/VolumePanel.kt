@@ -793,7 +793,7 @@ class VolumePanel(context: Context) : ModPack(context) {
             mContext.getSystemService(Context.WINDOW_SERVICE) as? WindowManager ?: return
 
         val overlay = FrameLayout(mContext).apply {
-            setBackgroundColor(Color.TRANSPARENT)
+            setBackgroundColor(Color.argb(SHEET_DIM_ALPHA, 0, 0, 0))
             alpha = 1f
             isClickable = true
             setOnClickListener {
@@ -802,7 +802,8 @@ class VolumePanel(context: Context) : ModPack(context) {
         }
 
         val sheet = createFloatingPerAppVolumeSheetContent().apply {
-            alpha = 0f
+            alpha = 1f
+            translationY = 0f
             setOnClickListener {
                 // Consume clicks inside the sheet.
             }
@@ -838,7 +839,12 @@ class VolumePanel(context: Context) : ModPack(context) {
             appVolumeSheetView = overlay
 
             sheet.post {
-                sheet.translationY = sheet.height.toFloat().coerceAtLeast(mContext.toPx(180).toFloat())
+                // Keep the final visible state as the fallback.
+                // Some SystemUI/overlay contexts do not reliably run ViewPropertyAnimator;
+                // if animation is skipped, the sheet must still be visible and touchable.
+                sheet.alpha = 1f
+                sheet.translationY = 0f
+                overlay.setBackgroundColor(Color.argb(SHEET_DIM_ALPHA, 0, 0, 0))
                 animateFloatingSheetIn(overlay, sheet)
             }
         }
@@ -879,10 +885,9 @@ class VolumePanel(context: Context) : ModPack(context) {
         val overlay = appVolumeSheetView as? ViewGroup ?: return
         if (overlay.childCount == 0) return
 
-        val oldSheet = overlay.getChildAt(0)
         val newSheet = createFloatingPerAppVolumeSheetContent().apply {
-            alpha = oldSheet.alpha
-            translationY = oldSheet.translationY
+            alpha = 1f
+            translationY = 0f
             setOnClickListener {
                 // Consume clicks inside the sheet.
             }
@@ -904,23 +909,29 @@ class VolumePanel(context: Context) : ModPack(context) {
     }
 
     private fun animateFloatingSheetIn(overlay: View, sheet: View) {
-        ValueAnimator.ofInt(0, SHEET_DIM_ALPHA).apply {
-            duration = SHEET_ANIMATION_MS
-            interpolator = DecelerateInterpolator()
-            addUpdateListener { animator ->
-                overlay.setBackgroundColor(
-                    Color.argb(animator.animatedValue as Int, 0, 0, 0)
-                )
-            }
-            start()
-        }
+        val startY = sheet.height.toFloat().coerceAtLeast(mContext.toPx(160).toFloat())
+
+        overlay.setBackgroundColor(Color.argb(SHEET_DIM_ALPHA, 0, 0, 0))
+        sheet.alpha = 1f
+        sheet.translationY = startY
 
         sheet.animate()
-            .alpha(1f)
             .translationY(0f)
             .setDuration(SHEET_ANIMATION_MS)
             .setInterpolator(DecelerateInterpolator())
+            .withEndAction {
+                sheet.alpha = 1f
+                sheet.translationY = 0f
+                overlay.setBackgroundColor(Color.argb(SHEET_DIM_ALPHA, 0, 0, 0))
+            }
             .start()
+
+        mainHandler.postDelayed({
+            // Hard fallback: never leave the overlay invisible/untouchable.
+            sheet.alpha = 1f
+            sheet.translationY = 0f
+            overlay.setBackgroundColor(Color.argb(SHEET_DIM_ALPHA, 0, 0, 0))
+        }, SHEET_ANIMATION_MS + 80L)
     }
 
     private fun animateFloatingSheetOut(overlay: View, sheet: View, endAction: () -> Unit) {
