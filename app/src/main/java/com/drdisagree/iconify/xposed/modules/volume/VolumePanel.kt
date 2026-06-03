@@ -1,6 +1,7 @@
 package com.drdisagree.iconify.xposed.modules.volume
 
 import android.annotation.SuppressLint
+import android.app.Dialog
 import android.content.Context
 import android.widget.SeekBar
 import android.widget.ImageView
@@ -14,6 +15,7 @@ import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
 import android.widget.LinearLayout
+import android.widget.FrameLayout
 import android.widget.TextView
 import com.drdisagree.iconify.data.common.Const.SYSTEMUI_PACKAGE
 import com.drdisagree.iconify.data.keys.XposedKey
@@ -242,6 +244,7 @@ class VolumePanel(context: Context) : ModPack(context) {
 
     private fun initPerAppVolume() {
         hookPerAppVolumeExpandedPanel()
+        hookModernVolumeDialogPanel()
 
         if (showAppVolume) {
             registerPlaybackCallback()
@@ -304,6 +307,54 @@ class VolumePanel(context: Context) : ModPack(context) {
             }
     }
 
+    private fun hookModernVolumeDialogPanel() {
+        val volumeDialogViewBinderClass = findClass(
+            "$SYSTEMUI_PACKAGE.volume.dialog.ui.binder.VolumeDialogViewBinder",
+            suppressError = true
+        )
+
+        volumeDialogViewBinderClass
+            .hookMethod("bind")
+            .suppressError()
+            .runAfter { param ->
+                if (!showAppVolume) return@runAfter
+
+                registerPlaybackCallback()
+                refreshPlaybackSources()
+
+                val dialog = param.args.firstOrNull { it is Dialog } as? Dialog
+                val root = dialog?.window?.decorView as? ViewGroup ?: return@runAfter
+
+                root.post {
+                    attachPerAppVolumePanelToRoot(root)
+                    updatePerAppVolumePanels()
+                }
+            }
+
+        val volumeDialogSlidersViewBinderClass = findClass(
+            "$SYSTEMUI_PACKAGE.volume.dialog.sliders.ui.VolumeDialogSlidersViewBinder",
+            suppressError = true
+        )
+
+        volumeDialogSlidersViewBinderClass
+            .hookMethod("bind")
+            .suppressError()
+            .runAfter { param ->
+                if (!showAppVolume) return@runAfter
+
+                registerPlaybackCallback()
+                refreshPlaybackSources()
+
+                val bindView = param.args.firstOrNull { it is View } as? View ?: return@runAfter
+                val root = (bindView as? ViewGroup) ?: (bindView.parent as? ViewGroup) ?: return@runAfter
+
+                root.post {
+                    attachPerAppVolumePanelToRoot(root)
+                    updatePerAppVolumePanels()
+                }
+            }
+    }
+
     private fun refreshPlaybackSources() {
         val audioManager =
             mContext.getSystemService(Context.AUDIO_SERVICE) as? AudioManager ?: return
@@ -325,21 +376,56 @@ class VolumePanel(context: Context) : ModPack(context) {
         }
     }
 
-    private fun attachPerAppVolumePanel(row: Any?) {
-        val stream = row.getFieldSilently("stream") as? Int
-        if (stream != AudioManager.STREAM_MUSIC) return
-
-        val rowView = row.getFieldSilently("view") as? View ?: return
-        val parent = findExpandedRowsParent(rowView) ?: return
-
-        val existingPanel = parent.findViewWithTag<LinearLayout>(PER_APP_VOLUME_PANEL_TAG)
+    private fun attachPerAppVolumePanelToRoot(root: ViewGroup) {
+        val existingPanel = root.findViewWithTag<LinearLayout>(PER_APP_VOLUME_PANEL_TAG)
         if (existingPanel != null) {
             appVolumePanels[existingPanel] = Unit
             updatePerAppVolumePanel(existingPanel)
             return
         }
 
-        val panel = LinearLayout(mContext).apply {
+        val panel = createPerAppVolumePanel().apply {
+            alpha = 0.96f
+        }
+
+        val params = when (root) {
+            is LinearLayout -> LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply {
+                topMargin = mContext.toPx(8)
+                bottomMargin = mContext.toPx(8)
+            }
+
+            is FrameLayout -> FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.WRAP_CONTENT,
+                Gravity.BOTTOM or Gravity.END
+            ).apply {
+                leftMargin = mContext.toPx(16)
+                rightMargin = mContext.toPx(16)
+                bottomMargin = mContext.toPx(92)
+            }
+
+            else -> ViewGroup.MarginLayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+            ).apply {
+                leftMargin = mContext.toPx(16)
+                rightMargin = mContext.toPx(16)
+                bottomMargin = mContext.toPx(16)
+            }
+        }
+
+        runCatching {
+            root.addView(panel, params)
+            appVolumePanels[panel] = Unit
+            updatePerAppVolumePanel(panel)
+        }
+    }
+
+    private fun createPerAppVolumePanel(): LinearLayout {
+        return LinearLayout(mContext).apply {
             tag = PER_APP_VOLUME_PANEL_TAG
             orientation = LinearLayout.VERTICAL
             visibility = View.GONE
@@ -354,6 +440,23 @@ class VolumePanel(context: Context) : ModPack(context) {
                 setColor(Color.argb(42, 255, 255, 255))
             }
         }
+    }
+
+    private fun attachPerAppVolumePanel(row: Any?) {
+        val stream = row.getFieldSilently("stream") as? Int
+        if (stream != AudioManager.STREAM_MUSIC) return
+
+        val rowView = row.getFieldSilently("view") as? View ?: return
+        val parent = findExpandedRowsParent(rowView) ?: return
+
+        val existingPanel = parent.findViewWithTag<LinearLayout>(PER_APP_VOLUME_PANEL_TAG)
+        if (existingPanel != null) {
+            appVolumePanels[existingPanel] = Unit
+            updatePerAppVolumePanel(existingPanel)
+            return
+        }
+
+        val panel = createPerAppVolumePanel()
 
         val params = LinearLayout.LayoutParams(
             LinearLayout.LayoutParams.MATCH_PARENT,
