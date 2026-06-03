@@ -1141,6 +1141,8 @@ class VolumePanel(context: Context) : ModPack(context) {
     }
 
     companion object {
+        private const val SHEET_ANIMATION_MS = 260L
+        private const val SHEET_DIM_ALPHA = 118
         private const val PER_APP_VOLUME_PREFS = "iconify_per_app_volume"
         private const val PER_APP_VOLUME_CARD_BUTTON_TAG = "iconify_per_app_volume_card_button"
         private const val PLAYER_STATE_STARTED = 2
