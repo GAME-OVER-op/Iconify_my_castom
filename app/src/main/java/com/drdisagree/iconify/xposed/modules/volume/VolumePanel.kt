@@ -402,23 +402,44 @@ class VolumePanel(context: Context) : ModPack(context) {
     }
 
     private fun attachPerAppVolumeButton(root: ViewGroup) {
-        val existingButton = root.findViewWithTag<ImageButton>(PER_APP_VOLUME_BUTTON_TAG)
-        if (existingButton != null) {
-            appVolumeButtons[existingButton] = Unit
-            updatePerAppVolumeButton(existingButton)
+        val existingHost = root.findViewWithTag<LinearLayout>(PER_APP_VOLUME_BUTTON_HOST_TAG)
+        if (existingHost != null) {
+            val existingButton = existingHost.findViewWithTag<ImageButton>(PER_APP_VOLUME_BUTTON_TAG)
+            if (existingButton != null) {
+                appVolumeButtons[existingButton] = Unit
+                updatePerAppVolumeButton(existingButton)
+            }
+            updatePerAppVolumeButtons()
             return
+        }
+
+        val host = LinearLayout(mContext).apply {
+            tag = PER_APP_VOLUME_BUTTON_HOST_TAG
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER
+            visibility = View.GONE
+            alpha = 0.98f
+            setPadding(
+                mContext.toPx(5),
+                mContext.toPx(6),
+                mContext.toPx(5),
+                mContext.toPx(6)
+            )
+            background = GradientDrawable().apply {
+                cornerRadius = mContext.toPx(26).toFloat()
+                setColor(Color.argb(238, 14, 18, 24))
+            }
         }
 
         val button = ImageButton(mContext).apply {
             tag = PER_APP_VOLUME_BUTTON_TAG
-            visibility = View.GONE
-            alpha = 0.96f
+            alpha = 0.98f
             scaleType = ImageView.ScaleType.CENTER_INSIDE
             setPadding(
-                mContext.toPx(10),
-                mContext.toPx(10),
-                mContext.toPx(10),
-                mContext.toPx(10)
+                mContext.toPx(9),
+                mContext.toPx(9),
+                mContext.toPx(9),
+                mContext.toPx(9)
             )
             background = GradientDrawable().apply {
                 shape = GradientDrawable.OVAL
@@ -426,36 +447,51 @@ class VolumePanel(context: Context) : ModPack(context) {
             }
             setOnClickListener {
                 refreshPlaybackSources()
-                hideSystemVolumeDialog()
                 showPerAppVolumeBottomSheet()
             }
         }
 
-        val size = mContext.toPx(46)
+        host.addView(
+            button,
+            LinearLayout.LayoutParams(mContext.toPx(46), mContext.toPx(46)).apply {
+                gravity = Gravity.CENTER
+            }
+        )
+
         val params = when (root) {
             is FrameLayout -> FrameLayout.LayoutParams(
-                size,
-                size,
+                mContext.toPx(72),
+                ViewGroup.LayoutParams.WRAP_CONTENT,
                 Gravity.END or Gravity.CENTER_VERTICAL
             ).apply {
-                rightMargin = mContext.toPx(52)
-                topMargin = mContext.toPx(180)
+                rightMargin = mContext.toPx(16)
+                topMargin = mContext.toPx(286)
             }
 
-            is LinearLayout -> LinearLayout.LayoutParams(size, size).apply {
+            is LinearLayout -> LinearLayout.LayoutParams(
+                mContext.toPx(72),
+                ViewGroup.LayoutParams.WRAP_CONTENT
+            ).apply {
                 gravity = Gravity.END
-                rightMargin = mContext.toPx(12)
-                topMargin = mContext.toPx(8)
-                bottomMargin = mContext.toPx(8)
+                rightMargin = mContext.toPx(4)
+                topMargin = mContext.toPx(4)
+                bottomMargin = mContext.toPx(4)
             }
 
-            else -> ViewGroup.LayoutParams(size, size)
+            else -> ViewGroup.MarginLayoutParams(
+                mContext.toPx(72),
+                ViewGroup.LayoutParams.WRAP_CONTENT
+            ).apply {
+                rightMargin = mContext.toPx(16)
+                topMargin = mContext.toPx(286)
+            }
         }
 
         runCatching {
-            root.addView(button, params)
+            root.addView(host, params)
             appVolumeButtons[button] = Unit
             updatePerAppVolumeButton(button)
+            updatePerAppVolumeButtons()
         }
     }
 
@@ -572,11 +608,14 @@ class VolumePanel(context: Context) : ModPack(context) {
                 (appVolumeSources.isNotEmpty() || audioManager?.isMusicActive == true)
 
         appVolumeButtons.keys.toList().forEach { button ->
-            if (button.parent == null) {
+            val host = button.parent as? View
+
+            if (host == null || host.parent == null) {
                 appVolumeButtons.remove(button)
                 return@forEach
             }
 
+            host.visibility = if (shouldShow) View.VISIBLE else View.GONE
             button.visibility = if (shouldShow) View.VISIBLE else View.GONE
 
             if (button is ImageButton) {
@@ -623,6 +662,7 @@ class VolumePanel(context: Context) : ModPack(context) {
         dialog.window?.apply {
             setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
             setGravity(Gravity.BOTTOM)
+            setDimAmount(0.25f)
             setLayout(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.WRAP_CONTENT
@@ -790,6 +830,7 @@ class VolumePanel(context: Context) : ModPack(context) {
     }
     companion object {
         private const val PER_APP_VOLUME_BUTTON_TAG = "iconify_per_app_volume_button"
+        private const val PER_APP_VOLUME_BUTTON_HOST_TAG = "iconify_per_app_volume_button_host"
         private const val PER_APP_VOLUME_PREFS = "iconify_per_app_volume"
         private const val PLAYER_STATE_STARTED = 2
     }
