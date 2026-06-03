@@ -4,25 +4,19 @@ import android.annotation.SuppressLint
 import android.app.Dialog
 import android.content.Context
 import android.graphics.Color
-import android.graphics.PixelFormat
 import android.graphics.drawable.GradientDrawable
 import android.media.AudioManager
 import android.media.AudioPlaybackConfiguration
 import android.os.Handler
 import android.os.Looper
 import android.view.Gravity
-import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
-import android.view.WindowManager
 import android.widget.FrameLayout
-import android.widget.ImageButton
 import android.widget.ImageView
 import android.widget.LinearLayout
-import android.widget.ScrollView
 import android.widget.SeekBar
 import android.widget.TextView
-import androidx.constraintlayout.widget.ConstraintLayout
 import com.drdisagree.iconify.data.common.Const.SYSTEMUI_PACKAGE
 import com.drdisagree.iconify.data.keys.XposedKey
 import com.drdisagree.iconify.xposed.ModPack
@@ -51,8 +45,7 @@ class VolumePanel(context: Context) : ModPack(context) {
 
     private val mainHandler = Handler(Looper.getMainLooper())
     private val appVolumeSources = linkedMapOf<String, AppVolumeSource>()
-    private val appVolumeButtons = WeakHashMap<ImageButton, Unit>()
-    private var appVolumeSheetView: View? = null
+    private val appVolumePanels = WeakHashMap<LinearLayout, Unit>()
     private var playbackCallbackRegistered = false
 
     override fun updatePrefs(vararg key: String) {
@@ -66,12 +59,11 @@ class VolumePanel(context: Context) : ModPack(context) {
             mainHandler.post {
                 registerPlaybackCallback()
                 refreshPlaybackSources()
-                updatePerAppVolumeButtons()
+                updatePerAppVolumePanels()
             }
         } else {
-            dismissPerAppVolumeBottomSheet()
             appVolumeSources.clear()
-            updatePerAppVolumeButtons()
+            updatePerAppVolumePanels()
         }
     }
 
@@ -301,8 +293,8 @@ class VolumePanel(context: Context) : ModPack(context) {
 
                 val root = findRootFromLegacyVolumeDialog(param.thisObject) ?: return@runAfter
                 root.post {
-                    attachPerAppVolumeButton(root)
-                    updatePerAppVolumeButtons()
+                    attachPerAppVolumeExpandedPanel(root)
+                    updatePerAppVolumePanels()
                 }
             }
     }
@@ -326,8 +318,8 @@ class VolumePanel(context: Context) : ModPack(context) {
                 val root = dialog?.window?.decorView as? ViewGroup ?: return@runAfter
 
                 root.post {
-                    attachPerAppVolumeButton(root)
-                    updatePerAppVolumeButtons()
+                    attachPerAppVolumeExpandedPanel(root)
+                    updatePerAppVolumePanels()
                 }
             }
 
@@ -349,8 +341,8 @@ class VolumePanel(context: Context) : ModPack(context) {
                 val root = findDecorRoot(bindView) ?: return@runAfter
 
                 root.post {
-                    attachPerAppVolumeButton(root)
-                    updatePerAppVolumeButtons()
+                    attachPerAppVolumeExpandedPanel(root)
+                    updatePerAppVolumePanels()
                 }
             }
     }
@@ -391,188 +383,127 @@ class VolumePanel(context: Context) : ModPack(context) {
         return current as? ViewGroup
     }
 
-    private fun attachPerAppVolumeButton(root: ViewGroup) {
-        val targetButton = findSettingsOrBottomButton(root) ?: return
-        val targetParent = targetButton.parent as? ViewGroup ?: return
+    private fun attachPerAppVolumeExpandedPanel(root: ViewGroup) {
+        val parent = findExpandedVolumePanelParent(root) ?: return
+        val existingPanel = root.findViewWithTag<LinearLayout>(PER_APP_VOLUME_PANEL_TAG)
 
-        val existingStack = root.findViewWithTag<LinearLayout>(PER_APP_VOLUME_BUTTON_STACK_TAG)
-        if (existingStack != null) {
-            val existingButton = existingStack.findViewWithTag<ImageButton>(PER_APP_VOLUME_BUTTON_TAG)
-            if (existingButton != null) {
-                appVolumeButtons[existingButton] = Unit
-                updatePerAppVolumeButton(existingButton)
+        if (existingPanel != null) {
+            if (existingPanel.parent !== parent) {
+                (existingPanel.parent as? ViewGroup)?.removeView(existingPanel)
+                addPerAppVolumePanel(parent, existingPanel)
+            } else {
+                existingPanel.layoutParams = createPerAppVolumePanelLayoutParams(parent)
+                existingPanel.requestLayout()
+                parent.requestLayout()
             }
-            updatePerAppVolumeButtons()
+
+            appVolumePanels[existingPanel] = Unit
+            updatePerAppVolumePanel(existingPanel)
+            updatePerAppVolumePanels()
             return
         }
 
-        val originalIndex = targetParent.indexOfChild(targetButton)
-        if (originalIndex < 0) return
+        val panel = createPerAppVolumePanel()
+        addPerAppVolumePanel(parent, panel)
+        appVolumePanels[panel] = Unit
+        updatePerAppVolumePanel(panel)
+        updatePerAppVolumePanels()
+    }
 
-        val originalParams = targetButton.layoutParams
-        val buttonSize = resolveButtonSize(targetButton)
-        val stack = createPerAppVolumeButtonStack()
-        val appButton = createPerAppVolumeButton()
-
+    private fun addPerAppVolumePanel(parent: ViewGroup, panel: LinearLayout) {
         runCatching {
-            targetParent.clipChildren = false
-            targetParent.clipToPadding = false
-
-            targetParent.removeView(targetButton)
-
-            stack.addView(
-                targetButton,
-                LinearLayout.LayoutParams(buttonSize, buttonSize).apply {
-                    gravity = Gravity.CENTER
-                }
-            )
-
-            stack.addView(
-                appButton,
-                LinearLayout.LayoutParams(buttonSize, buttonSize).apply {
-                    gravity = Gravity.CENTER
-                }
-            )
-
-            targetParent.addView(stack, originalIndex, originalParams)
-
-            expandTouchAncestors(stack, buttonSize)
-
-            appVolumeButtons[appButton] = Unit
-            updatePerAppVolumeButton(appButton)
-            updatePerAppVolumeButtons()
-        }.onFailure {
-            runCatching {
-                if (targetButton.parent == null) {
-                    targetParent.addView(targetButton, originalIndex, originalParams)
-                }
-            }
-        }
-    }
-
-    private fun createPerAppVolumeButtonStack(): LinearLayout {
-        return LinearLayout(mContext).apply {
-            tag = PER_APP_VOLUME_BUTTON_STACK_TAG
-            orientation = LinearLayout.VERTICAL
-            gravity = Gravity.CENTER
-            visibility = View.GONE
-            alpha = 0.98f
-            isClickable = false
-            setPadding(0, 0, 0, 0)
-            background = null
-        }
-    }
-
-    private fun createPerAppVolumeButton(): ImageButton {
-        return ImageButton(mContext).apply {
-            tag = PER_APP_VOLUME_BUTTON_TAG
-            alpha = 0.98f
-            isClickable = true
-            isFocusable = true
-            scaleType = ImageView.ScaleType.CENTER_INSIDE
-            setPadding(
-                mContext.toPx(9),
-                mContext.toPx(9),
-                mContext.toPx(9),
-                mContext.toPx(9)
-            )
-            background = null
-            contentDescription = "Per-app volume"
-            setOnTouchListener { view, event ->
-                when (event.actionMasked) {
-                    MotionEvent.ACTION_DOWN -> {
-                        view.isPressed = true
-                        true
-                    }
-
-                    MotionEvent.ACTION_UP -> {
-                        view.isPressed = false
-                        view.performClick()
-                        true
-                    }
-
-                    MotionEvent.ACTION_CANCEL -> {
-                        view.isPressed = false
-                        true
-                    }
-
-                    else -> true
-                }
-            }
-            setOnClickListener {
-                refreshPlaybackSources()
-                showPerAppVolumeBottomSheet()
-            }
-        }
-    }
-
-    private fun resolveButtonSize(referenceView: View): Int {
-        val referenceParams = referenceView.layoutParams
-        val measuredWidth = referenceView.width
-        val measuredHeight = referenceView.height
-
-        return when {
-            measuredWidth > 0 && measuredHeight > 0 -> minOf(measuredWidth, measuredHeight)
-            referenceParams?.width != null && referenceParams.width > 0 &&
-                    referenceParams.height > 0 -> minOf(referenceParams.width, referenceParams.height)
-            else -> mContext.toPx(48)
-        }.coerceIn(mContext.toPx(40), mContext.toPx(58))
-    }
-
-    private fun expandTouchAncestors(anchor: View, extraHeight: Int) {
-        var current: View? = anchor
-        repeat(8) {
-            val parent = current?.parent as? ViewGroup ?: return
-
             parent.clipChildren = false
             parent.clipToPadding = false
-            parent.minimumHeight = maxOf(parent.minimumHeight, parent.height + extraHeight)
 
-            val params = parent.layoutParams
-            if (params != null && params.height > 0) {
-                params.height += extraHeight
-                parent.layoutParams = params
+            val insertIndex = findPerAppVolumePanelInsertIndex(parent)
+            val params = createPerAppVolumePanelLayoutParams(parent)
+
+            if (insertIndex != null && parent is LinearLayout) {
+                parent.addView(panel, insertIndex, params)
+            } else {
+                parent.addView(panel, params)
             }
 
             parent.requestLayout()
-            current = parent
         }
     }
 
-    private fun findSettingsOrBottomButton(root: ViewGroup): View? {
-        findViewByResourceName(
-            root,
-            "volume_panel_dialog_settings_button"
-        )?.let { return it }
-
-        findViewByResourceName(
-            root,
-            "volume_dialog_bottom_section_container"
-        )?.let { bottomSection ->
-            findBottomClickableButton(bottomSection as? ViewGroup ?: root)?.let { return it }
+    private fun createPerAppVolumePanel(): LinearLayout {
+        return LinearLayout(mContext).apply {
+            tag = PER_APP_VOLUME_PANEL_TAG
+            orientation = LinearLayout.VERTICAL
+            visibility = View.GONE
+            setPadding(
+                mContext.toPx(18),
+                mContext.toPx(12),
+                mContext.toPx(18),
+                mContext.toPx(12)
+            )
+            background = GradientDrawable().apply {
+                cornerRadius = mContext.toPx(24).toFloat()
+                setColor(Color.argb(46, 255, 255, 255))
+            }
         }
-
-        findCompactVolumePanelView(root)?.let { compactPanel ->
-            findBottomClickableButton(compactPanel)?.let { return it }
-        }
-
-        return findBottomClickableButton(root)
     }
 
-    private fun findViewByResourceName(root: ViewGroup, name: String): View? {
-        val id = mContext.resources.getIdentifier(name, "id", mContext.packageName)
-        if (id == 0) return null
+    private fun createPerAppVolumePanelLayoutParams(parent: ViewGroup): ViewGroup.LayoutParams {
+        return when (parent) {
+            is LinearLayout -> LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply {
+                topMargin = mContext.toPx(8)
+                bottomMargin = mContext.toPx(8)
+            }
 
-        return root.findViewById(id)
+            else -> ViewGroup.MarginLayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+            ).apply {
+                topMargin = mContext.toPx(8)
+                bottomMargin = mContext.toPx(8)
+            }
+        }
     }
 
-    private fun findCompactVolumePanelView(root: ViewGroup): ViewGroup? {
+    private fun findPerAppVolumePanelInsertIndex(parent: ViewGroup): Int? {
+        // In the expanded volume settings screen, the first row is usually the media row.
+        // Insert our block immediately after it. If the container layout is different,
+        // append to the container rather than touching the compact volume button area.
+        return if (parent.childCount > 0) 1.coerceAtMost(parent.childCount) else null
+    }
+
+    private fun findExpandedVolumePanelParent(root: ViewGroup): ViewGroup? {
+        val rows = findViewGroupByResourceName(root, "volume_dialog_rows")
+        if (rows != null && isExpandedVolumeContainer(rows)) return rows
+
+        val rowsContainer = findViewGroupByResourceName(root, "volume_dialog_rows_container")
+        if (rowsContainer != null && isExpandedVolumeContainer(rowsContainer)) return rowsContainer
+
+        val mainDialog = findViewGroupByResourceName(root, "volume_dialog")
+        if (mainDialog != null && isExpandedVolumeContainer(mainDialog)) {
+            findViewGroupByResourceName(mainDialog, "volume_dialog_rows")?.let { return it }
+            return mainDialog
+        }
+
+        return findLargeVerticalPanel(root)
+    }
+
+    private fun isExpandedVolumeContainer(view: View): Boolean {
+        if (!view.isShown) return false
+
         val displayWidth = mContext.resources.displayMetrics.widthPixels
-        val minWidth = mContext.toPx(48)
-        val maxWidth = mContext.toPx(170)
-        val minHeight = mContext.toPx(140)
+        val displayHeight = mContext.resources.displayMetrics.heightPixels
+        val width = if (view.width > 0) view.width else view.layoutParams?.width ?: 0
+        val height = if (view.height > 0) view.height else view.layoutParams?.height ?: 0
 
-        var bestCandidate: ViewGroup? = null
+        return width >= displayWidth * 0.45f || height >= displayHeight * 0.32f
+    }
+
+    private fun findLargeVerticalPanel(root: ViewGroup): ViewGroup? {
+        val displayWidth = mContext.resources.displayMetrics.widthPixels
+        val displayHeight = mContext.resources.displayMetrics.heightPixels
+        var best: ViewGroup? = null
         var bestScore = Int.MIN_VALUE
 
         fun visit(view: View) {
@@ -580,24 +511,15 @@ class VolumePanel(context: Context) : ModPack(context) {
             val width = if (group.width > 0) group.width else group.layoutParams?.width ?: 0
             val height = if (group.height > 0) group.height else group.layoutParams?.height ?: 0
 
-            val looksLikeCompactPanel =
-                width in minWidth..maxWidth &&
-                        height >= minHeight &&
-                        height > width * 2 &&
-                        group.childCount >= 2
+            val isLarge = group.isShown &&
+                    (width >= displayWidth * 0.45f || height >= displayHeight * 0.32f) &&
+                    group.childCount >= 2
 
-            if (looksLikeCompactPanel) {
-                val location = IntArray(2)
-                runCatching {
-                    group.getLocationOnScreen(location)
-                }
-
-                val rightSideBonus = if (location[0] > displayWidth / 2) 5000 else 0
-                val score = height * 10 - width + rightSideBonus
-
+            if (isLarge) {
+                val score = width + height + group.childCount * 80
                 if (score > bestScore) {
                     bestScore = score
-                    bestCandidate = group
+                    best = group
                 }
             }
 
@@ -607,64 +529,25 @@ class VolumePanel(context: Context) : ModPack(context) {
         }
 
         visit(root)
-        return bestCandidate
+        return best
     }
 
-    private fun findBottomClickableButton(root: ViewGroup): View? {
-        var bestView: View? = null
-        var bestScore = Int.MIN_VALUE
+    private fun findViewByResourceName(root: ViewGroup, name: String): View? {
+        val id = mContext.resources.getIdentifier(name, "id", mContext.packageName)
+        if (id == 0) return null
 
-        fun visit(view: View) {
-            if (view.tag == PER_APP_VOLUME_BUTTON_TAG ||
-                view.tag == PER_APP_VOLUME_BUTTON_STACK_TAG
-            ) {
-                return
-            }
+        return root.findViewById(id)
+    }
 
-            val group = view as? ViewGroup
-            val isCandidate =
-                view.isShown &&
-                        view !is SeekBar &&
-                        (view.isClickable || view.hasOnClickListeners())
-
-            if (isCandidate) {
-                val location = IntArray(2)
-                runCatching {
-                    view.getLocationOnScreen(location)
-                }
-
-                val width = if (view.width > 0) view.width else view.layoutParams?.width ?: 0
-                val height = if (view.height > 0) view.height else view.layoutParams?.height ?: 0
-                val bottom = location[1] + height
-                val compactBonus = if (width <= mContext.toPx(80) && height <= mContext.toPx(80)) {
-                    3000
-                } else {
-                    0
-                }
-                val score = bottom * 10 + compactBonus
-
-                if (score > bestScore) {
-                    bestScore = score
-                    bestView = view
-                }
-            }
-
-            if (group != null) {
-                for (i in 0 until group.childCount) {
-                    visit(group.getChildAt(i))
-                }
-            }
-        }
-
-        visit(root)
-        return bestView
+    private fun findViewGroupByResourceName(root: ViewGroup, name: String): ViewGroup? {
+        return findViewByResourceName(root, name) as? ViewGroup
     }
 
     private fun updatePlaybackSources(configs: List<AudioPlaybackConfiguration>) {
         if (!showAppVolume) {
             appVolumeSources.clear()
             mainHandler.post {
-                updatePerAppVolumeButtons()
+                updatePerAppVolumePanels()
             }
             return
         }
@@ -703,8 +586,7 @@ class VolumePanel(context: Context) : ModPack(context) {
         }
 
         mainHandler.post {
-            updatePerAppVolumeButtons()
-            refreshPerAppVolumeBottomSheet()
+            updatePerAppVolumePanels()
         }
     }
 
@@ -765,123 +647,45 @@ class VolumePanel(context: Context) : ModPack(context) {
         }
     }
 
-    private fun updatePerAppVolumeButtons() {
-        val audioManager =
-            mContext.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
+    private fun updatePerAppVolumePanels() {
+        val shouldShow = shouldShowPerAppVolumePanel()
 
-        val shouldShow = showAppVolume &&
-                (appVolumeSources.isNotEmpty() || audioManager?.isMusicActive == true)
-
-        appVolumeButtons.keys.toList().forEach { button ->
-            if (button.parent == null) {
-                appVolumeButtons.remove(button)
+        appVolumePanels.keys.toList().forEach { panel ->
+            if (panel.parent == null) {
+                appVolumePanels.remove(panel)
                 return@forEach
             }
 
-            button.visibility = if (shouldShow) View.VISIBLE else View.GONE
-            updatePerAppVolumeButton(button)
-        }
-    }
+            val parent = panel.parent as? View
+            val expanded = parent?.let { isExpandedVolumeContainer(it) } ?: false
+            panel.visibility = if (shouldShow && expanded) View.VISIBLE else View.GONE
 
-    private fun updatePerAppVolumeButton(button: ImageButton) {
-        val firstSource = appVolumeSources.values.firstOrNull()
-        val fallbackIcon = runCatching {
-            mContext.getDrawable(android.R.drawable.ic_media_play)
-        }.getOrNull()
-
-        button.setImageDrawable(firstSource?.icon ?: fallbackIcon)
-    }
-
-    private fun showPerAppVolumeBottomSheet() {
-        dismissPerAppVolumeBottomSheet()
-
-        val windowManager =
-            mContext.getSystemService(Context.WINDOW_SERVICE) as? WindowManager ?: return
-
-        val overlay = FrameLayout(mContext).apply {
-            setBackgroundColor(Color.argb(85, 0, 0, 0))
-            setOnClickListener {
-                dismissPerAppVolumeBottomSheet()
+            if (panel.visibility == View.VISIBLE) {
+                updatePerAppVolumePanel(panel)
             }
         }
-
-        val sheet = createPerAppVolumeSheetContent()
-        sheet.setOnClickListener {
-            // Consume clicks so tapping the sheet does not close the overlay.
-        }
-
-        overlay.addView(
-            sheet,
-            FrameLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                ViewGroup.LayoutParams.WRAP_CONTENT,
-                Gravity.BOTTOM
-            ).apply {
-                leftMargin = mContext.toPx(12)
-                rightMargin = mContext.toPx(12)
-                bottomMargin = mContext.toPx(12)
-            }
-        )
-
-        val params = WindowManager.LayoutParams(
-            WindowManager.LayoutParams.MATCH_PARENT,
-            WindowManager.LayoutParams.MATCH_PARENT,
-            WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
-            WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
-            PixelFormat.TRANSLUCENT
-        ).apply {
-            gravity = Gravity.BOTTOM
-            setTitle("Iconify per-app volume")
-        }
-
-        runCatching {
-            windowManager.addView(overlay, params)
-            appVolumeSheetView = overlay
-        }
     }
 
-    private fun dismissPerAppVolumeBottomSheet() {
-        val view = appVolumeSheetView ?: return
-        val windowManager =
-            mContext.getSystemService(Context.WINDOW_SERVICE) as? WindowManager ?: return
+    private fun shouldShowPerAppVolumePanel(): Boolean {
+        if (!showAppVolume) return false
 
-        runCatching {
-            windowManager.removeView(view)
-        }
+        val audioManager =
+            mContext.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
 
-        appVolumeSheetView = null
+        return appVolumeSources.isNotEmpty() || audioManager?.isMusicActive == true
     }
 
-    private fun refreshPerAppVolumeBottomSheet() {
-        if (appVolumeSheetView == null) return
+    private fun updatePerAppVolumePanel(panel: LinearLayout) {
+        panel.removeAllViews()
 
-        dismissPerAppVolumeBottomSheet()
-        showPerAppVolumeBottomSheet()
-    }
-
-    private fun createPerAppVolumeSheetContent(): View {
-        val container = LinearLayout(mContext).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(
-                mContext.toPx(22),
-                mContext.toPx(18),
-                mContext.toPx(22),
-                mContext.toPx(24)
-            )
-            background = GradientDrawable().apply {
-                cornerRadius = mContext.toPx(28).toFloat()
-                setColor(Color.argb(248, 24, 24, 24))
-            }
-        }
-
-        container.addView(TextView(mContext).apply {
+        panel.addView(TextView(mContext).apply {
             text = "Громкость приложений"
-            textSize = 20f
+            textSize = 16f
             setTextColor(Color.WHITE)
-            gravity = Gravity.CENTER
+            setPadding(0, 0, 0, mContext.toPx(4))
         })
 
-        container.addView(TextView(mContext).apply {
+        panel.addView(TextView(mContext).apply {
             text = if (appVolumeSources.isEmpty()) {
                 "Активные источники пока не найдены"
             } else {
@@ -889,26 +693,20 @@ class VolumePanel(context: Context) : ModPack(context) {
             }
             textSize = 12f
             setTextColor(Color.argb(190, 255, 255, 255))
-            gravity = Gravity.CENTER
-            setPadding(0, mContext.toPx(6), 0, mContext.toPx(12))
+            setPadding(0, 0, 0, mContext.toPx(8))
         })
 
         if (appVolumeSources.isEmpty()) {
-            container.addView(TextView(mContext).apply {
-                text = "Запусти музыку/видео и открой окно ещё раз."
+            panel.addView(TextView(mContext).apply {
+                text = "Запусти музыку/видео и открой расширенную панель громкости ещё раз."
                 textSize = 13f
                 setTextColor(Color.argb(220, 255, 255, 255))
-                gravity = Gravity.CENTER
-                setPadding(0, mContext.toPx(10), 0, mContext.toPx(10))
+                setPadding(0, mContext.toPx(4), 0, mContext.toPx(4))
             })
         } else {
             appVolumeSources.values.forEach { source ->
-                container.addView(createPerAppVolumeRow(source))
+                panel.addView(createPerAppVolumeRow(source))
             }
-        }
-
-        return ScrollView(mContext).apply {
-            addView(container)
         }
     }
 
@@ -916,12 +714,12 @@ class VolumePanel(context: Context) : ModPack(context) {
         val row = LinearLayout(mContext).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            setPadding(0, mContext.toPx(8), 0, mContext.toPx(8))
+            setPadding(0, mContext.toPx(7), 0, mContext.toPx(7))
         }
 
         row.addView(ImageView(mContext).apply {
             setImageDrawable(source.icon)
-        }, LinearLayout.LayoutParams(mContext.toPx(34), mContext.toPx(34)).apply {
+        }, LinearLayout.LayoutParams(mContext.toPx(32), mContext.toPx(32)).apply {
             rightMargin = mContext.toPx(12)
         })
 
@@ -959,7 +757,7 @@ class VolumePanel(context: Context) : ModPack(context) {
                 override fun onStartTrackingTouch(seekBar: SeekBar?) = Unit
                 override fun onStopTrackingTouch(seekBar: SeekBar?) = Unit
             })
-        }, LinearLayout.LayoutParams(mContext.toPx(150), ViewGroup.LayoutParams.WRAP_CONTENT))
+        }, LinearLayout.LayoutParams(mContext.toPx(160), ViewGroup.LayoutParams.WRAP_CONTENT))
 
         return row
     }
@@ -1005,8 +803,7 @@ class VolumePanel(context: Context) : ModPack(context) {
     }
 
     companion object {
-        private const val PER_APP_VOLUME_BUTTON_TAG = "iconify_per_app_volume_button"
-        private const val PER_APP_VOLUME_BUTTON_STACK_TAG = "iconify_per_app_volume_button_stack"
+        private const val PER_APP_VOLUME_PANEL_TAG = "iconify_per_app_volume_panel"
         private const val PER_APP_VOLUME_PREFS = "iconify_per_app_volume"
         private const val PLAYER_STATE_STARTED = 2
     }
