@@ -16,6 +16,7 @@ import android.view.Gravity
 import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
+import android.view.ViewParent
 import android.view.WindowManager
 import android.view.animation.DecelerateInterpolator
 import android.widget.FrameLayout
@@ -58,6 +59,8 @@ class VolumePanel(context: Context) : ModPack(context) {
     private val appVolumeSettingsLongPressViews = WeakHashMap<View, Unit>()
     private var appVolumeButtonView: View? = null
     private var appVolumeSheetView: View? = null
+    private var appVolumeSliderDragging = false
+    private var appVolumeSheetRefreshPending = false
     private var playbackCallbackRegistered = false
 
     override fun updatePrefs(vararg key: String) {
@@ -372,7 +375,11 @@ class VolumePanel(context: Context) : ModPack(context) {
         }
 
         mainHandler.post {
-            refreshFloatingPerAppVolumeSheet()
+            if (appVolumeSliderDragging) {
+                appVolumeSheetRefreshPending = true
+            } else {
+                refreshFloatingPerAppVolumeSheet()
+            }
         }
     }
 
@@ -438,14 +445,19 @@ class VolumePanel(context: Context) : ModPack(context) {
 
         writeStoredAppVolume(packageName, source.volume)
 
-        if (coercedVolume > 0.001f) {
+        if (coercedVolume > 0.001f && !appVolumeSliderDragging) {
             // Re-read active players before applying a restore from 0%.
             // At 0%, some players can be temporarily absent from callbacks.
             refreshPlaybackSources()
         }
 
         applyVolumeToSource(appVolumeSources[packageName] ?: source)
-        refreshFloatingPerAppVolumeSheet()
+
+        if (appVolumeSliderDragging) {
+            appVolumeSheetRefreshPending = true
+        } else {
+            refreshFloatingPerAppVolumeSheet()
+        }
     }
 
     private fun applyVolumeToSource(source: AppVolumeSource) {
@@ -1023,6 +1035,38 @@ class VolumePanel(context: Context) : ModPack(context) {
         }
     }
 
+    private fun beginAppVolumeSliderDrag(view: View?) {
+        appVolumeSliderDragging = true
+        requestAppVolumeParentsDisallowIntercept(view, true)
+    }
+
+    private fun endAppVolumeSliderDrag(view: View?) {
+        requestAppVolumeParentsDisallowIntercept(view, false)
+
+        if (!appVolumeSliderDragging) return
+
+        appVolumeSliderDragging = false
+
+        if (appVolumeSheetRefreshPending) {
+            appVolumeSheetRefreshPending = false
+            refreshPlaybackSources()
+            mainHandler.postDelayed({
+                if (!appVolumeSliderDragging) {
+                    refreshFloatingPerAppVolumeSheet()
+                }
+            }, 120L)
+        }
+    }
+
+    private fun requestAppVolumeParentsDisallowIntercept(view: View?, disallow: Boolean) {
+        var parent: ViewParent? = view?.parent
+
+        repeat(12) {
+            parent?.requestDisallowInterceptTouchEvent(disallow)
+            parent = (parent as? View)?.parent
+        }
+    }
+
     private fun createPerAppVolumeRow(source: AppVolumeSource): View {
         val row = LinearLayout(mContext).apply {
             orientation = LinearLayout.VERTICAL
@@ -1082,12 +1126,12 @@ class VolumePanel(context: Context) : ModPack(context) {
                 when (event.actionMasked) {
                     MotionEvent.ACTION_DOWN,
                     MotionEvent.ACTION_MOVE -> {
-                        view.parent?.requestDisallowInterceptTouchEvent(true)
+                        beginAppVolumeSliderDrag(view)
                     }
 
                     MotionEvent.ACTION_UP,
                     MotionEvent.ACTION_CANCEL -> {
-                        view.parent?.requestDisallowInterceptTouchEvent(false)
+                        endAppVolumeSliderDrag(view)
                     }
                 }
 
@@ -1104,11 +1148,11 @@ class VolumePanel(context: Context) : ModPack(context) {
                 }
 
                 override fun onStartTrackingTouch(seekBar: SeekBar?) {
-                    seekBar?.parent?.requestDisallowInterceptTouchEvent(true)
+                    beginAppVolumeSliderDrag(seekBar)
                 }
 
                 override fun onStopTrackingTouch(seekBar: SeekBar?) {
-                    seekBar?.parent?.requestDisallowInterceptTouchEvent(false)
+                    endAppVolumeSliderDrag(seekBar)
                 }
             })
         }
@@ -1117,16 +1161,16 @@ class VolumePanel(context: Context) : ModPack(context) {
             isClickable = true
             isFocusable = true
             setPadding(0, mContext.toPx(4), 0, mContext.toPx(2))
-            setOnTouchListener { _, event ->
+            setOnTouchListener { view, event ->
                 when (event.actionMasked) {
                     MotionEvent.ACTION_DOWN,
                     MotionEvent.ACTION_MOVE -> {
-                        parent?.requestDisallowInterceptTouchEvent(true)
+                        beginAppVolumeSliderDrag(view)
                     }
 
                     MotionEvent.ACTION_UP,
                     MotionEvent.ACTION_CANCEL -> {
-                        parent?.requestDisallowInterceptTouchEvent(false)
+                        endAppVolumeSliderDrag(view)
                     }
                 }
 
