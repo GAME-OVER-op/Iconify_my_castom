@@ -13,8 +13,10 @@ import android.media.AudioPlaybackConfiguration
 import android.os.Handler
 import android.os.Looper
 import android.view.Gravity
+import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
+import android.view.ViewParent
 import android.view.WindowManager
 import android.view.animation.DecelerateInterpolator
 import android.widget.FrameLayout
@@ -57,6 +59,8 @@ class VolumePanel(context: Context) : ModPack(context) {
     private val appVolumeSettingsLongPressViews = WeakHashMap<View, Unit>()
     private var appVolumeButtonView: View? = null
     private var appVolumeSheetView: View? = null
+    private var appVolumeSliderDragging = false
+    private var appVolumeSheetRefreshPending = false
     private var playbackCallbackRegistered = false
 
     override fun updatePrefs(vararg key: String) {
@@ -371,7 +375,11 @@ class VolumePanel(context: Context) : ModPack(context) {
         }
 
         mainHandler.post {
-            refreshFloatingPerAppVolumeSheet()
+            if (appVolumeSliderDragging) {
+                appVolumeSheetRefreshPending = true
+            } else {
+                refreshFloatingPerAppVolumeSheet()
+            }
         }
     }
 
@@ -437,14 +445,19 @@ class VolumePanel(context: Context) : ModPack(context) {
 
         writeStoredAppVolume(packageName, source.volume)
 
-        if (coercedVolume > 0.001f) {
+        if (coercedVolume > 0.001f && !appVolumeSliderDragging) {
             // Re-read active players before applying a restore from 0%.
             // At 0%, some players can be temporarily absent from callbacks.
             refreshPlaybackSources()
         }
 
         applyVolumeToSource(appVolumeSources[packageName] ?: source)
-        refreshFloatingPerAppVolumeSheet()
+
+        if (appVolumeSliderDragging) {
+            appVolumeSheetRefreshPending = true
+        } else {
+            refreshFloatingPerAppVolumeSheet()
+        }
     }
 
     private fun applyVolumeToSource(source: AppVolumeSource) {
@@ -793,7 +806,7 @@ class VolumePanel(context: Context) : ModPack(context) {
             mContext.getSystemService(Context.WINDOW_SERVICE) as? WindowManager ?: return
 
         val overlay = FrameLayout(mContext).apply {
-            setBackgroundColor(Color.TRANSPARENT)
+            setBackgroundColor(Color.argb(SHEET_DIM_ALPHA, 0, 0, 0))
             alpha = 1f
             isClickable = true
             setOnClickListener {
@@ -802,7 +815,8 @@ class VolumePanel(context: Context) : ModPack(context) {
         }
 
         val sheet = createFloatingPerAppVolumeSheetContent().apply {
-            alpha = 0f
+            alpha = 1f
+            translationY = 0f
             setOnClickListener {
                 // Consume clicks inside the sheet.
             }
@@ -838,7 +852,10 @@ class VolumePanel(context: Context) : ModPack(context) {
             appVolumeSheetView = overlay
 
             sheet.post {
-                sheet.translationY = sheet.height.toFloat().coerceAtLeast(mContext.toPx(180).toFloat())
+                // Keep the final visible state as the fallback.
+                sheet.alpha = 1f
+                sheet.translationY = 0f
+                overlay.setBackgroundColor(Color.argb(SHEET_DIM_ALPHA, 0, 0, 0))
                 animateFloatingSheetIn(overlay, sheet)
             }
         }
@@ -879,10 +896,9 @@ class VolumePanel(context: Context) : ModPack(context) {
         val overlay = appVolumeSheetView as? ViewGroup ?: return
         if (overlay.childCount == 0) return
 
-        val oldSheet = overlay.getChildAt(0)
         val newSheet = createFloatingPerAppVolumeSheetContent().apply {
-            alpha = oldSheet.alpha
-            translationY = oldSheet.translationY
+            alpha = 1f
+            translationY = 0f
             setOnClickListener {
                 // Consume clicks inside the sheet.
             }
@@ -904,23 +920,29 @@ class VolumePanel(context: Context) : ModPack(context) {
     }
 
     private fun animateFloatingSheetIn(overlay: View, sheet: View) {
-        ValueAnimator.ofInt(0, SHEET_DIM_ALPHA).apply {
-            duration = SHEET_ANIMATION_MS
-            interpolator = DecelerateInterpolator()
-            addUpdateListener { animator ->
-                overlay.setBackgroundColor(
-                    Color.argb(animator.animatedValue as Int, 0, 0, 0)
-                )
-            }
-            start()
-        }
+        val startY = sheet.height.toFloat().coerceAtLeast(mContext.toPx(160).toFloat())
+
+        overlay.setBackgroundColor(Color.argb(SHEET_DIM_ALPHA, 0, 0, 0))
+        sheet.alpha = 1f
+        sheet.translationY = startY
 
         sheet.animate()
-            .alpha(1f)
             .translationY(0f)
             .setDuration(SHEET_ANIMATION_MS)
             .setInterpolator(DecelerateInterpolator())
+            .withEndAction {
+                sheet.alpha = 1f
+                sheet.translationY = 0f
+                overlay.setBackgroundColor(Color.argb(SHEET_DIM_ALPHA, 0, 0, 0))
+            }
             .start()
+
+        mainHandler.postDelayed({
+            // Hard fallback: never leave the overlay invisible/untouchable.
+            sheet.alpha = 1f
+            sheet.translationY = 0f
+            overlay.setBackgroundColor(Color.argb(SHEET_DIM_ALPHA, 0, 0, 0))
+        }, SHEET_ANIMATION_MS + 80L)
     }
 
     private fun animateFloatingSheetOut(overlay: View, sheet: View, endAction: () -> Unit) {
@@ -1010,6 +1032,38 @@ class VolumePanel(context: Context) : ModPack(context) {
             isFillViewport = false
             overScrollMode = View.OVER_SCROLL_NEVER
             addView(container)
+        }
+    }
+
+    private fun beginAppVolumeSliderDrag(view: View?) {
+        appVolumeSliderDragging = true
+        requestAppVolumeParentsDisallowIntercept(view, true)
+    }
+
+    private fun endAppVolumeSliderDrag(view: View?) {
+        requestAppVolumeParentsDisallowIntercept(view, false)
+
+        if (!appVolumeSliderDragging) return
+
+        appVolumeSliderDragging = false
+
+        if (appVolumeSheetRefreshPending) {
+            appVolumeSheetRefreshPending = false
+            refreshPlaybackSources()
+            mainHandler.postDelayed({
+                if (!appVolumeSliderDragging) {
+                    refreshFloatingPerAppVolumeSheet()
+                }
+            }, 120L)
+        }
+    }
+
+    private fun requestAppVolumeParentsDisallowIntercept(view: View?, disallow: Boolean) {
+        var parent: ViewParent? = view?.parent
+
+        repeat(12) {
+            parent?.requestDisallowInterceptTouchEvent(disallow)
+            parent = (parent as? View)?.parent
         }
     }
 
